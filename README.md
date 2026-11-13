@@ -119,6 +119,8 @@ It prints the initial `admin` password (from `argocd-initial-admin-secret`).
 The certificate is self-signed, so accept the browser warning. In the
 devcontainer, VS Code forwards port 8080 to the host.
 
+![Argo CD UI: dep-dlm-reference-staging Synced and Healthy](./images/argocd-web-ui.png)
+
 ## Promoting a testbed commit
 
 The submodule commits are the pin: the patches, scripts, OPA policies and

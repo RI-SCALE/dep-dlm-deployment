@@ -11,7 +11,7 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ENV_PATH="${1:?usage: bootstrap.sh <ri>/<stage> [--repo-url URL] [--install-argocd]}"; shift
 REPO_URL="${REPO_URL:-https://github.com/RI-SCALE/dep-dlm-deployment.git}"
-ARGOCD_VERSION="${ARGOCD_VERSION:-v2.13.3}"
+ARGOCD_VERSION="${ARGOCD_VERSION:-v3.6.1}"   # tested on Kubernetes 1.34–1.37
 INSTALL_ARGOCD=0
 
 while [[ $# -gt 0 ]]; do
