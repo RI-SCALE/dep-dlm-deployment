@@ -2,7 +2,7 @@
 
 ## Next
 - [x] Deploy reference/staging on GCP staging (Argo CD sync converges)
-- [ ] Run the testbed's E2E tests against reference/staging (transfers, deletion, authz)
+- [x] Run the testbed's E2E tests against reference/staging
 - [ ] Pin the FTS image (`mgajekcern/test-fts:latest`) to the validated tag/digest
 - [ ] Document each `dep-dlm-config` key against the testbed's
       `deploy/terraform/modules/secrets/templates/*.tftpl`
