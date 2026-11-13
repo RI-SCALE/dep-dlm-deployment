@@ -15,6 +15,12 @@ curl -fsSLo /usr/local/bin/yq "https://github.com/mikefarah/yq/releases/download
 chmod +x /usr/local/bin/{kubectl,yq}
 apt-get update -qq && apt-get install -y -qq gettext-base   # envsubst
 
+# gcloud + GKE auth plugin, for `gcloud container clusters get-credentials`
+curl -fsSL https://packages.cloud.google.com/apt/doc/apt-key.gpg | gpg --dearmor -o /usr/share/keyrings/cloud.google.gpg
+echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main" \
+  > /etc/apt/sources.list.d/google-cloud-sdk.list
+apt-get update -qq && apt-get install -y -qq google-cloud-cli google-cloud-cli-gke-gcloud-auth-plugin
+
 # Pinned testbed and rucio charts (vendor/); files/ and the subcharts read from them.
 git submodule update --init
 
