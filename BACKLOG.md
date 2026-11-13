@@ -10,6 +10,9 @@
 ## Later
 - [ ] Second reference setup: single-node Kubernetes (kubeadm or similar) on a GCP VM,
       with PostgreSQL, MySQL and Vault on the VM as well (on-premise path, `secretStore.provider: vault`)
+- [ ] Replace vendor/ submodules: publish testbed subcharts to OCI, source rucio charts from
+      upstream (or the fork via OCI), copy the deployed patches/scripts/configs in place via
+      an allowlisted `make sync`, recording the testbed commit in PROMOTION.md
 - [ ] Drop the `vendor/rucio-helm-charts` submodule once the fork's `configMounts`
       commits are upstream; use `https://rucio.github.io/helm-charts`
 - [ ] Deployment diagram
