@@ -42,3 +42,10 @@ template: ## Render one environment (ENV=<ri>/<stage>)
 .PHONY: bootstrap
 bootstrap: ## Bootstrap ENV on the current kubectl context (ARGS="--install-argocd")
 	scripts/bootstrap.sh $(ENV) $(ARGS)
+
+.PHONY: argocd-open
+argocd-open: ## Open the Argo CD UI (port-forward to https://localhost:8080 until Ctrl-C; user admin)
+	@echo "user: admin  password: $$(kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d)"
+	@echo "https://localhost:8080  (Ctrl-C to stop)"
+	kubectl -n argocd port-forward svc/argocd-server 8080:443
+
