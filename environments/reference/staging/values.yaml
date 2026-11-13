@@ -15,19 +15,22 @@ secrets:
   configKey: dep-dlm-staging-secrets
 
 bootstrapDb:
-  dbHost: ""     # terraform output -raw rucio_database_private_ip (testbed staging)
+  dbHost: 10.153.0.48     # terraform output -raw rucio_database_private_ip (testbed staging)
 
 gateway:
   enabled: true
-  addressName: dep-dlm-staging-gateway-ip
+  addressName: dep-dlm-staging-gateway-ip   # name of google_compute_global_address (136.81.187.28)
   routes:
     - name: rucio-server
       hostname: rucio.dep-dlm-staging.example.com
       service: rucio-server
       port: 80
-      healthCheck: { type: HTTP, port: 80, path: /ping }   # verify against the testbed's healthcheckpolicy-rucio-server.yaml
-    # TODO: FTS route and health check, from the testbed's
-    # environments/staging/gateway/{httproute,healthcheckpolicy}-fts.yaml
+      healthCheck: { type: HTTP, port: 80, path: /ping }
+    - name: fts
+      hostname: fts.dep-dlm-staging.example.com
+      service: fts
+      port: 8446
+      healthCheck: { type: HTTPS, port: 8446, path: /whoami }
 
 observability:
   enabled: true
