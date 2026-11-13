@@ -44,9 +44,32 @@ infrastructure.
 
 ```bash
 git clone --recurse-submodules https://github.com/RI-SCALE/dep-dlm-deployment.git
-make lint                              # builds the subcharts from vendor/, renders every environment
-make bootstrap ENV=reference/staging   # from that cluster's kubectl context
+make lint                                                         # builds the subcharts from vendor/, renders every environment
+make bootstrap ENV=reference/staging ARGS=--install-argocd       # from that cluster's kubectl context
 ```
+
+## First sync
+
+The dep-dlm Application might fail its first attempts until External Secrets
+(CRDs and webhook) is up, typically with `no endpoints available for service
+"<eso>-webhook"`. This is expected: the sync retries with backoff (30 s up to
+5 min) and converges in a few minutes. Watch it with:
+
+```bash
+kubectl -n argocd get applications -w
+kubectl -n <namespace> get externalsecret,jobs,pods,gateway,httproute
+```
+
+If ESO is Healthy but the Application is still waiting in backoff, force a
+refresh instead of waiting:
+
+```bash
+kubectl -n argocd annotate application dep-dlm-<ri>-<stage> \
+  argocd.argoproj.io/refresh=hard --overwrite
+```
+
+`kubectl -n argocd get application dep-dlm-<ri>-<stage> -o yaml` shows the
+last sync result under `status.operationState` if it does not converge.
 
 ## Promoting a testbed commit
 

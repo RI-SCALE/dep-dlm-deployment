@@ -1,9 +1,8 @@
 # Backlog
 
 ## Next
-- [ ] Set `bootstrapDb.dbHost` for reference/staging (`terraform output -raw rucio_database_private_ip`)
-- [ ] Test the setup on GCP staging (reference/staging)
-- [ ] Port the FTS route and health check to the Gateway
+- [x] Deploy reference/staging on GCP staging (Argo CD sync converges)
+- [ ] Run the testbed's E2E tests against reference/staging (transfers, deletion, authz)
 - [ ] Pin the FTS image (`mgajekcern/test-fts:latest`) to the validated tag/digest
 - [ ] Document each `dep-dlm-config` key against the testbed's
       `deploy/terraform/modules/secrets/templates/*.tftpl`

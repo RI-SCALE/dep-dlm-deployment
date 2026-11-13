@@ -40,5 +40,5 @@ template: ## Render one environment (ENV=<ri>/<stage>)
 	helm template dep-dlm $(CHART) -f environments/$(ENV)/values.yaml
 
 .PHONY: bootstrap
-bootstrap: ## Bootstrap ENV on the current kubectl context
-	scripts/bootstrap.sh $(ENV)
+bootstrap: ## Bootstrap ENV on the current kubectl context (ARGS="--install-argocd")
+	scripts/bootstrap.sh $(ENV) $(ARGS)
