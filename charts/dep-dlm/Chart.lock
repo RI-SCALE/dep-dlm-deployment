@@ -1,0 +1,18 @@
+dependencies:
+- name: rucio-server
+  repository: file://../../vendor/rucio-helm-charts/charts/rucio-server
+  version: 41.2.1
+- name: rucio-daemons
+  repository: file://../../vendor/rucio-helm-charts/charts/rucio-daemons
+  version: 41.2.1
+- name: fts
+  repository: file://../../vendor/dep-dlm-testbed/deploy/helm-charts/fts
+  version: 0.1.0
+- name: opa
+  repository: file://../../vendor/dep-dlm-testbed/deploy/helm-charts/opa
+  version: 0.1.0
+- name: observability
+  repository: file://../../vendor/dep-dlm-testbed/deploy/helm-charts/observability
+  version: 0.1.0
+digest: sha256:f3df2e01ca54efa9c04da218328a24089b95df600e199087fa2c84b048694c15
+generated: "2026-11-13T11:12:38.263019171Z"

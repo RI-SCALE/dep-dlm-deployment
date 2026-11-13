@@ -1,0 +1,36 @@
+apiVersion: v2
+name: dep-dlm
+description: |
+  DEP DLM data orchestration layer (Rucio server and daemons, FTS, OPA) for
+  one RI environment. Thin umbrella over charts from dep-dlm-testbed; adds
+  secrets projection, policy/patch ConfigMaps, DB bootstrap and an optional
+  Gateway.
+type: application
+version: 0.1.0
+appVersion: "41.2.1"
+
+# Subcharts come from the git submodules under vendor/, so they are pinned by
+# the submodule commits (`git submodule status`), exactly like files/. Argo CD
+# checks out submodules and runs `helm dependency build` itself; file://
+# dependencies need no plugin, no chart repository and no committed .tgz.
+dependencies:
+  - name: rucio-server
+    version: "41.2.1"
+    repository: "file://../../vendor/rucio-helm-charts/charts/rucio-server"
+    condition: rucio-server.enabled
+  - name: rucio-daemons
+    version: "41.2.1"
+    repository: "file://../../vendor/rucio-helm-charts/charts/rucio-daemons"
+    condition: rucio-daemons.enabled
+  - name: fts
+    version: "0.1.0"
+    repository: "file://../../vendor/dep-dlm-testbed/deploy/helm-charts/fts"
+    condition: fts.enabled
+  - name: opa
+    version: "0.1.0"
+    repository: "file://../../vendor/dep-dlm-testbed/deploy/helm-charts/opa"
+    condition: opa.enabled
+  - name: observability
+    version: "0.1.0"
+    repository: "file://../../vendor/dep-dlm-testbed/deploy/helm-charts/observability"
+    condition: observability.enabled

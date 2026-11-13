@@ -1,0 +1,51 @@
+# Reference environment: the testbed's GCP staging infrastructure (GKE,
+# Cloud SQL, Secret Manager), provisioned by dep-dlm-testbed's Terraform.
+# Only what differs from charts/dep-dlm/values.yaml.
+
+secretStore:
+  provider: gcpsm
+  gcpsm:
+    projectID: dep-dlm-staging-e52e0d90
+    clusterLocation: europe-west3-b
+    clusterName: dep-dlm-staging-gke
+    serviceAccount: { name: external-secrets-staging, namespace: dep-dlm-staging }
+
+secrets:
+  certsKey: dep-dlm-staging-certs        # same Secret Manager entries the testbed renders
+  configKey: dep-dlm-staging-secrets
+
+bootstrapDb:
+  dbHost: ""     # terraform output -raw rucio_database_private_ip (testbed staging)
+
+gateway:
+  enabled: true
+  addressName: dep-dlm-staging-gateway-ip
+  routes:
+    - name: rucio-server
+      hostname: rucio.dep-dlm-staging.example.com
+      service: rucio-server
+      port: 80
+      healthCheck: { type: HTTP, port: 80, path: /ping }   # verify against the testbed's healthcheckpolicy-rucio-server.yaml
+    # TODO: FTS route and health check, from the testbed's
+    # environments/staging/gateway/{httproute,healthcheckpolicy}-fts.yaml
+
+observability:
+  enabled: true
+  alerts:     { enabled: false }   # Cloud Monitoring policies (Terraform)
+  dashboards: { enabled: false }   # no Grafana on GKE
+  exporters:
+    fts:   { dsnSecret: { name: dep-dlm-config, key: fts-db-dsn } }
+    rucio: { dsnSecret: { name: dep-dlm-config, key: rucio-db-dsn } }
+  gmp:
+    enabled: true
+    podMonitorings:
+      - name: rucio-server
+        selector: { matchLabels: { app: rucio-server } }
+        port: 80
+        path: /metrics/
+      - name: rucio-daemons
+        selector: { matchExpressions: [ { key: rucio-daemon, operator: Exists } ] }
+        port: metrics
+        fromPod: [ { from: rucio-daemon, to: daemon } ]
+      - { name: fts,      selector: { matchLabels: { app: fts-exporter } },      port: metrics }
+      - { name: rucio-db, selector: { matchLabels: { app: rucio-db-exporter } }, port: metrics }

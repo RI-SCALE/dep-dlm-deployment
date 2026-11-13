@@ -1,0 +1,12 @@
+{
+  "name": "dep-dlm-deployment",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu-24.04",
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": { "moby": true }
+  },
+  "postCreateCommand": "bash .devcontainer/setup.sh",
+  "remoteUser": "root",
+  "customizations": {
+    "vscode": { "extensions": ["redhat.vscode-yaml", "ms-kubernetes-tools.vscode-kubernetes-tools"] }
+  }
+}

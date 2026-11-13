@@ -1,0 +1,3 @@
+# Built from vendor/ by `make deps` locally and by Argo CD on sync.
+charts/dep-dlm/charts/
+*.tgz

@@ -1,0 +1,51 @@
+{{- /*
+  Optional public endpoint on GKE (Gateway API). On premise, leave
+  gateway.enabled false and expose the Services with the site's ingress.
+*/}}
+{{- if .Values.gateway.enabled }}
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: dep-dlm-gateway
+  labels: {{- include "dep-dlm.labels" . | nindent 4 }}
+spec:
+  gatewayClassName: {{ .Values.gateway.className }}
+  {{- with .Values.gateway.addressName }}
+  addresses:
+    - { type: NamedAddress, value: {{ . }} }
+  {{- end }}
+  listeners:
+    - name: http
+      protocol: HTTP
+      port: 80
+      allowedRoutes: { namespaces: { from: Same } }
+{{- range $route := .Values.gateway.routes }}
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: {{ $route.name }}
+  labels: {{- include "dep-dlm.labels" $ | nindent 4 }}
+spec:
+  parentRefs: [ { name: dep-dlm-gateway } ]
+  hostnames: [ {{ $route.hostname | quote }} ]
+  rules:
+    - backendRefs: [ { name: {{ $route.service }}, port: {{ $route.port }} } ]
+{{- with $route.healthCheck }}
+---
+apiVersion: networking.gke.io/v1
+kind: HealthCheckPolicy
+metadata:
+  name: {{ $route.name }}
+  labels: {{- include "dep-dlm.labels" $ | nindent 4 }}
+spec:
+  default:
+    config:
+      type: {{ .type }}
+      {{ lower .type }}HealthCheck:
+        port: {{ .port }}
+        requestPath: {{ .path }}
+  targetRef: { group: "", kind: Service, name: {{ $route.service }} }
+{{- end }}
+{{- end }}
+{{- end }}

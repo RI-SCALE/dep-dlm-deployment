@@ -1,0 +1,68 @@
+# Rendered by scripts/bootstrap.sh for one environment (${ENV_PATH}) and
+# applied to that environment's Argo CD. Each RI runs its own cluster and
+# Argo CD, so a root manages exactly one environment.
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: external-secrets
+  namespace: argocd
+  finalizers: [ resources-finalizer.argocd.argoproj.io ]
+spec:
+  project: default
+  source:
+    repoURL: https://charts.external-secrets.io
+    chart: external-secrets
+    targetRevision: 0.10.7
+    helm:
+      releaseName: ${ESO_NAME}
+      values: |
+        installCRDs: true
+        fullnameOverride: ${ESO_NAME}
+        serviceAccount:
+          annotations:
+            iam.gke.io/gcp-service-account: "${ESO_GCP_SA}"
+  destination: { server: https://kubernetes.default.svc, namespace: ${ESO_NAMESPACE} }
+  syncPolicy:
+    automated: { prune: true, selfHeal: true }
+    syncOptions: [ CreateNamespace=true, ServerSideApply=true ]
+---
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: dep-dlm
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: [ "missingkey=error" ]
+  generators:
+    - git:
+        repoURL: ${REPO_URL}
+        revision: ${ENV_REVISION}
+        files:
+          - path: environments/${ENV_PATH}/env.yaml
+  template:
+    metadata:
+      name: 'dep-dlm-{{ .ri }}-{{ .stage }}'
+    spec:
+      project: default
+      sources:
+        # Chart at the pinned core revision ...
+        - repoURL: ${REPO_URL}
+          targetRevision: '{{ .baseRevision }}'
+          path: charts/dep-dlm
+          helm:
+            releaseName: dep-dlm
+            valueFiles: [ '$env/{{ .path.path }}/values.yaml' ]
+        # ... values at the environment's own revision.
+        - repoURL: ${REPO_URL}
+          targetRevision: '{{ .envRevision }}'
+          ref: env
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '{{ .namespace }}'
+      syncPolicy:
+        automated: { prune: true, selfHeal: true }
+        # ExternalSecret CRDs appear only once external-secrets has synced.
+        retry: { limit: 10, backoff: { duration: 30s, factor: 2, maxDuration: 5m } }
+        syncOptions: [ CreateNamespace=true, ServerSideApply=true, SkipDryRunOnMissingResource=true ]

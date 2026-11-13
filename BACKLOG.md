@@ -1,0 +1,31 @@
+# Backlog
+
+## Next
+- [ ] Set `bootstrapDb.dbHost` for reference/staging (`terraform output -raw rucio_database_private_ip`)
+- [ ] Test the setup on GCP staging (reference/staging)
+- [ ] Port the FTS route and health check to the Gateway
+- [ ] Pin the FTS image (`mgajekcern/test-fts:latest`) to the validated tag/digest
+- [ ] Document each `dep-dlm-config` key against the testbed's
+      `deploy/terraform/modules/secrets/templates/*.tftpl`
+
+## Later
+- [ ] Second reference setup: single-node Kubernetes (kubeadm or similar) on a GCP VM,
+      with PostgreSQL, MySQL and Vault on the VM as well (on-premise path, `secretStore.provider: vault`)
+- [ ] Drop the `vendor/rucio-helm-charts` submodule once the fork's `configMounts`
+      commits are upstream; use `https://rucio.github.io/helm-charts`
+- [ ] Deployment diagram
+
+## Production enablement
+From the [testbed's backlog](https://github.com/RI-SCALE/dep-dlm-testbed/blob/main/BACKLOG.md):
+
+- [ ] `dep-dlm-deployment` repository: curated Terraform and GitOps for partners, not a copy of the testbed
+- [ ] Promotion process: each promoted component has a validated source commit, supported version,
+      CI evidence, configuration requirements and known limitations (`PROMOTION.md`)
+- [ ] Production configuration and defaults extracted from the testbed
+- [ ] Deployment CI (`make lint` on PRs, with `submodules: true` on checkout)
+- [ ] Upgrade and rollback procedures
+- [ ] Partner runbooks for configuration (Rucio, OIDC, FTS, RSEs, certificates, WP4 token provider),
+      with credentials supplied by the partner
+    - [x] [01–07](https://github.com/RI-SCALE/dep-dlm-testbed/tree/main/docs/runbooks): sandbox quickstart, IdP,
+          storage, validation storage, IdP profiles, secrets (Secret Manager + ESO), observability
+    - [ ] Certificates (Rucio/FTS, public TLS)

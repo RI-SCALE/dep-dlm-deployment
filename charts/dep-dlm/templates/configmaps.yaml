@@ -1,0 +1,27 @@
+{{- /*
+  Non-sensitive files from the pinned dep-dlm-testbed commit (the
+  vendor/dep-dlm-testbed submodule, reached through the symlinks in files/).
+  Globs, prefixes and separators are the testbed's own (testbed-patches,
+  testbed-scripts, opa-evaluator, opa-policies-cm), so the keys are identical
+  to the testbed's. Only what the deployment mounts is selected: no teapot
+  patches, no sandbox scripts (init-testbed, keycloak, vault seeding, ...).
+*/}}
+{{- $configMaps := list
+  (dict "name" "dep-dlm-patches"    "glob" "files/patches/{rucio,fts}/**"                         "prefix" "files/patches/" "sep" "--")
+  (dict "name" "dep-dlm-scripts"    "glob" "files/scripts/{ingest_policies.py,rucio/bootstrap-db.py}" "prefix" "files/scripts/" "sep" "--")
+  (dict "name" "dep-dlm-fts-config" "glob" "files/configs/fts/gfal2_http_plugin.conf"             "prefix" "files/configs/fts/" "sep" "--")
+  (dict "name" "opa-evaluator"      "glob" "files/configs/opa/vendor/opa-ri-scale/dep/**.rego"    "prefix" "files/configs/opa/vendor/opa-ri-scale/dep/" "sep" "__")
+  (dict "name" "opa-policies"       "glob" "files/configs/opa/{authz.rego,odrl/*.json}"           "prefix" "files/configs/opa/" "sep" "__")
+}}
+{{- range $cm := $configMaps }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $cm.name }}
+  labels: {{- include "dep-dlm.labels" $ | nindent 4 }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
+data:
+{{- include "dep-dlm.filesData" (list $ $cm.glob $cm.prefix $cm.sep) }}
+{{- end }}
