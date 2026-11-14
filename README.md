@@ -94,6 +94,8 @@ The dep-dlm Application might fail its first attempts until External Secrets
 ```bash
 kubectl -n argocd get applications -w
 kubectl -n <namespace> get externalsecret,jobs,pods,gateway,httproute
+# e.g.
+kubectl -n dep-dlm-staging get externalsecret,jobs,pods,gateway,httproute
 ```
 
 If ESO is Healthy but the Application is still waiting in backoff, force a
@@ -102,6 +104,8 @@ refresh instead of waiting:
 ```bash
 kubectl -n argocd annotate application dep-dlm-<ri>-<stage> \
   argocd.argoproj.io/refresh=hard --overwrite
+# e.g.
+kubectl -n argocd annotate application dep-dlm-reference-staging argocd.argoproj.io/refresh=hard --overwrite
 ```
 
 `kubectl -n argocd get application dep-dlm-<ri>-<stage> -o yaml` shows the
