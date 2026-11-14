@@ -8,8 +8,9 @@
       `deploy/terraform/modules/secrets/templates/*.tftpl`
 
 ## Later
-- [ ] Second reference setup: single-node Kubernetes (kubeadm or similar) on a GCP VM,
-      with PostgreSQL, MySQL and Vault on the VM as well (on-premise path, `secretStore.provider: vault`)
+- [ ] On-premise reference: `infra/reference-onprem/` (Terraform: GCE VM, kubeadm/RKE2,
+      PostgreSQL + MySQL + Vault on the VM) and `environments/reference/onprem/`
+      (`secretStore.provider: vault`, no Gateway); run the testbed E2E tests against it
 - [x] Replace vendor/ submodules: publish testbed subcharts to OCI, source rucio charts from
       upstream (or the fork via OCI), copy the deployed patches/scripts/configs in place via
       an allowlisted `make sync`, recording the testbed commit in PROMOTION.md
