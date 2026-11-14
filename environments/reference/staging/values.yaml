@@ -15,7 +15,7 @@ secrets:
   configKey: dep-dlm-staging-secrets
 
 bootstrapDb:
-  dbHost: 10.153.0.48     # terraform output -raw rucio_database_private_ip (testbed staging)
+  dbHost: 10.153.0.53     # terraform output -raw rucio_database_private_ip (testbed staging)
 
 gateway:
   enabled: true
