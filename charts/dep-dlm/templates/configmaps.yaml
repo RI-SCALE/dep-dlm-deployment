@@ -1,6 +1,6 @@
 {{- /*
-  Non-sensitive files from the pinned dep-dlm-testbed commit (the
-  vendor/dep-dlm-testbed submodule, reached through the symlinks in files/).
+  Non-sensitive files copied into files/ from a validated dep-dlm-testbed
+  commit by `make sync` (scripts/sync-from-testbed.sh).
   Globs, prefixes and separators are the testbed's own (testbed-patches,
   testbed-scripts, opa-evaluator, opa-policies-cm), so the keys are identical
   to the testbed's. Only what the deployment mounts is selected: no teapot

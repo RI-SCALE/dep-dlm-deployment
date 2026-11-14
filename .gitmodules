@@ -1,6 +1,0 @@
-[submodule "vendor/dep-dlm-testbed"]
-	path = vendor/dep-dlm-testbed
-	url = https://github.com/RI-SCALE/dep-dlm-testbed
-[submodule "vendor/rucio-helm-charts"]
-	path = vendor/rucio-helm-charts
-	url = https://github.com/mgajek-cern/helm-charts

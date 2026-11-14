@@ -7,9 +7,9 @@ release is a git tag (`vX.Y.Z`); environments pin it as `baseRevision`.
 
 | Item | Value |
 |---|---|
-| Testbed source | `vendor/dep-dlm-testbed` submodule commit (`git submodule status`) |
-| Rucio charts | `vendor/rucio-helm-charts` submodule commit (mgajek-cern/helm-charts) |
-| Subcharts | built from those submodules (`Chart.lock`) |
+| Testbed source | dep-dlm-testbed `a5af379b7c47d353e7b1ff30700ad26c7b5105c1` (`files/`; fts, opa, observability charts) |
+| Rucio charts | mgajek-cern/helm-charts `e69bb891a7045d64ec0fb72198ce7e502fed83a3` |
+| Subcharts | `git+https` refs pinned to those commits, vendored in `charts/dep-dlm/charts/` (`Chart.lock`) |
 | Images | rucio-server/-daemons `release-41.2.1`, OPA `1.8.0-static`, FTS `mgajekcern/test-fts:latest` (to pin) |
 | CI evidence | _link to the testbed run(s) the source commit passed_ |
 | Validated on | _reference/staging: link to e2e and user-flow results_ |

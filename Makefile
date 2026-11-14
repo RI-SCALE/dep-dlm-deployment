@@ -3,32 +3,22 @@ SHELL := /usr/bin/env bash
 
 CHART   := charts/dep-dlm
 ENV     ?= reference/staging
-TESTBED := vendor/dep-dlm-testbed
-RUCIO   := vendor/rucio-helm-charts
+TESTBED ?= ../dep-dlm-testbed
 
 .PHONY: help
 help: ## Show targets
-	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / { printf "  \033[36m%-10s\033[0m %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
-
-.PHONY: init
-init: ## Check out the pinned submodules
-	git submodule update --init
+	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / { printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
 
 .PHONY: sync
-sync: ## Pin the testbed (and rucio charts) to a validated commit: TESTBED_REF=<sha> [RUCIO_REF=<sha>]
-	@[[ -n "$(TESTBED_REF)" ]] || { echo "usage: make sync TESTBED_REF=<sha> [RUCIO_REF=<sha>]" >&2; exit 2; }
-	git -C $(TESTBED) fetch -q origin && git -C $(TESTBED) checkout -q $(TESTBED_REF)
-	@if [[ -n "$(RUCIO_REF)" ]]; then git -C $(RUCIO) fetch -q origin && git -C $(RUCIO) checkout -q $(RUCIO_REF); fi
-	$(MAKE) deps
-	@git submodule status
-	@echo "Review 'git diff --submodule=diff', update PROMOTION.md, then commit vendor/ and Chart.lock."
+sync: ## Copy deployed files from a validated testbed checkout, pin its charts (TESTBED=path [RUCIO_REF=sha])
+	RUCIO_REF=$(RUCIO_REF) scripts/sync-from-testbed.sh $(TESTBED)
 
 .PHONY: deps
-deps: ## Build the subcharts from vendor/ (refreshes Chart.lock; charts/ stays untracked)
+deps: ## Vendor the subcharts (helm-git); commit charts/dep-dlm/charts/ and Chart.lock
 	helm dependency update $(CHART)
 
 .PHONY: lint
-lint: deps ## Lint and render every environment
+lint: ## Lint and render every environment
 	@for env in environments/*/*/; do \
 	  echo "==> $$env"; \
 	  helm lint $(CHART) -f $$env/values.yaml >/dev/null || exit 1; \
@@ -48,4 +38,3 @@ argocd-open: ## Open the Argo CD UI (port-forward to https://localhost:8080 unti
 	@echo "user: admin  password: $$(kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d)"
 	@echo "https://localhost:8080  (Ctrl-C to stop)"
 	kubectl -n argocd port-forward svc/argocd-server 8080:443
-

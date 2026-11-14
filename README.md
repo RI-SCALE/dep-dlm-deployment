@@ -10,12 +10,11 @@ promoted here (see `PROMOTION.md`).
 flowchart LR
   subgraph repo["dep-dlm-deployment (git)"]
     direction TB
-    vendor["vendor/<br/>dep-dlm-testbed @ sha<br/>rucio-helm-charts @ sha"]
-    chart["charts/dep-dlm<br/>umbrella chart"]
+    chart["charts/dep-dlm<br/>umbrella chart<br/>files/ + vendored subcharts"]
     envs["environments/&lt;ri&gt;/&lt;stage&gt;/<br/>env.yaml + values.yaml"]
-    vendor -- "file:// subcharts,<br/>files/ symlinks" --> chart
   end
-  testbed["dep-dlm-testbed<br/>(validated commit)"] -- "make sync<br/>(submodule bump)" --> vendor
+  testbed["dep-dlm-testbed<br/>(validated commit)"] -- "make sync: files/<br/>make deps: fts, opa,<br/>observability @ sha" --> chart
+  fork["rucio helm-charts fork"] -- "make deps:<br/>rucio-server/-daemons @ sha" --> chart
 
   subgraph cluster["one cluster per RI"]
     direction TB
@@ -37,13 +36,12 @@ flowchart LR
 
 | Path | What |
 |---|---|
-| `charts/dep-dlm/` | Thin umbrella over the testbed's charts (`file://` into `vendor/`) plus secrets, ConfigMaps, DB bootstrap, optional Gateway |
-| `charts/dep-dlm/files/` | Symlinks into the testbed submodule (patches, scripts, configs), as in the testbed's own chart |
-| `vendor/` | Submodules: `dep-dlm-testbed` and `rucio-helm-charts`, pinned to the validated commits |
+| `charts/dep-dlm/` | Thin umbrella over the testbed's charts (`git+https`, pinned to commits, vendored as `.tgz` in `charts/`) plus secrets, ConfigMaps, DB bootstrap, optional Gateway |
+| `charts/dep-dlm/files/` | Patches, scripts and OPA policies copied from the testbed by `make sync`, in the testbed's layout |
 | `environments/<ri>/<stage>/` | `env.yaml` (namespace, pinned `baseRevision`, ESO) and `values.yaml` (overrides only) |
 | `argocd/root.yaml.tmpl` | External Secrets plus an ApplicationSet for one environment |
-| `scripts/` | `bootstrap.sh` |
-| `.devcontainer/` | kubectl, Helm, yq, gcloud; checks out the submodules |
+| `scripts/` | `bootstrap.sh`, `sync-from-testbed.sh` |
+| `.devcontainer/` | kubectl, Helm with helm-git, yq, gcloud |
 
 `<ri>` is `eiscat`, `enes`, `euro-bioimaging`, `bbmri` or `reference`;
 `<stage>` is `staging` or `production`. Environments are added when there is
@@ -78,8 +76,8 @@ flowchart LR
 ## Getting started
 
 ```bash
-git clone --recurse-submodules https://github.com/RI-SCALE/dep-dlm-deployment.git
-make lint                                                    # builds the subcharts from vendor/, renders every environment
+git clone https://github.com/RI-SCALE/dep-dlm-deployment.git
+make lint                                                    # renders every environment from the vendored subcharts
 make bootstrap ENV=reference/staging ARGS=--install-argocd   # from that cluster's kubectl context
 ```
 
@@ -123,25 +121,29 @@ devcontainer, VS Code forwards port 8080 to the host.
 
 ## Promoting a testbed commit
 
-The submodule commits are the pin: the patches, scripts, OPA policies and
-subcharts all come from them, so they can never drift apart.
+A promotion copies the deployed files from a validated testbed commit and
+pins the testbed subcharts to the same commit, so they cannot drift apart.
 
 ```mermaid
 flowchart LR
-  a["Testbed commit<br/>passes CI + staging"] --> b["make sync<br/>TESTBED_REF=&lt;sha&gt;"]
-  b --> c["Review<br/>git diff --submodule=diff"]
-  c --> d["Commit vendor/, Chart.lock,<br/>PROMOTION.md; tag vX.Y.Z"]
+  a["Testbed commit<br/>passes CI + staging"] --> b["make sync TESTBED=&lt;sha&gt;<br/>make deps"]
+  b --> c["Review<br/>git diff"]
+  c --> d["Commit files/, charts/,<br/>Chart.lock, PROMOTION.md;<br/>tag vX.Y.Z"]
   d --> e["Environments bump<br/>baseRevision to the tag"]
 ```
 
 ```bash
-make sync TESTBED_REF=<validated sha> [RUCIO_REF=<sha>]
-git diff --submodule=diff -- vendor/   # what is being promoted
-git add vendor charts/dep-dlm/Chart.lock PROMOTION.md && git commit
+make sync TESTBED=<validated sha> [RUCIO_REF=<ref>]   # files/ + chart refs in Chart.yaml
+make deps && make lint                                 # re-vendor the subcharts (needs helm-git)
+git diff                                               # what is being promoted
+git add charts/dep-dlm PROMOTION.md && git commit
 ```
 
-Argo CD checks out submodules and builds `file://` dependencies itself, so
-nothing generated is committed besides `Chart.lock`.
+`TESTBED` also takes a tag, a branch or a path to a local checkout; refs are
+always pinned as full commit SHAs. Only `make deps` needs helm-git: Argo CD
+renders the committed `.tgz` subcharts, so it needs neither the plugin nor
+access to the source repos. Run `make deps` only when the refs change, since
+Helm rewrites the archives with new timestamps.
 
 ## Adding an environment
 
