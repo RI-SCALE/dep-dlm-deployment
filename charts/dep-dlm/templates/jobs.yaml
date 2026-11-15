@@ -1,0 +1,97 @@
+{{- /*
+  rucio-bootstrap-db: a Sync hook in wave -1, so it runs after the secrets
+  (wave -2) are Ready and before the Rucio workloads (wave 0) start; the
+  daemons then never meet a missing schema. Idempotent.
+
+  opa-init: a PostSync hook, after OPA is Healthy; pushes authz.rego and the
+  ODRL data. Until it has run, query_opa() fails closed (spurious denials,
+  never a wrong allow).
+*/}}
+{{- if .Values.bootstrapDb.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: rucio-bootstrap-db
+  labels: {{- include "dep-dlm.labels" . | nindent 4 }}
+  annotations:
+    argocd.argoproj.io/hook: Sync
+    argocd.argoproj.io/sync-wave: "-1"
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  backoffLimit: 6
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: bootstrap
+          image: "{{ .Values.bootstrapDb.image.repository }}:{{ .Values.bootstrapDb.image.tag }}"
+          command:
+            - bash
+            - -c
+            - |
+              set -e
+              for i in $(seq 1 30); do
+                python3 -c "import socket; socket.create_connection(('${DB_HOST}', 5432), timeout=2).close()" 2>/dev/null \
+                  && { echo "  ✓ ${DB_HOST} reachable"; break; }
+                echo "  [$i] waiting for ${DB_HOST}..."; sleep 5
+              done
+              python3 /scripts/rucio--bootstrap-db.py
+          env:
+            - name: DB_HOST
+              value: {{ required "bootstrapDb.dbHost is required" .Values.bootstrapDb.dbHost | quote }}
+          volumeMounts:
+            - { name: config,  mountPath: /opt/rucio/etc/rucio.cfg,        subPath: server.cfg }
+            - { name: config,  mountPath: /opt/rucio/etc/alembic.ini,      subPath: alembic.ini }
+            - { name: config,  mountPath: /opt/rucio/etc/idpsecrets.json, subPath: idpsecrets.json }
+            - { name: scripts, mountPath: /scripts }
+            {{- range list "__init__" "opa_client" "permission" }}
+            - name: patches
+              mountPath: /usr/local/lib/python3.9/site-packages/rucio_opa_v1_policy/{{ . }}.py
+              subPath: rucio--rucio_opa_v1_policy--src--rucio_opa_v1_policy--{{ . }}.py
+            {{- end }}
+      volumes:
+        - { name: config,  secret:    { secretName: dep-dlm-config } }
+        - { name: scripts, configMap: { name: dep-dlm-scripts, defaultMode: 0755 } }
+        - { name: patches, configMap: { name: dep-dlm-patches } }
+{{- end }}
+{{- if and .Values.opaInit.enabled (index .Values "opa" "enabled") }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: opa-init
+  labels: {{- include "dep-dlm.labels" . | nindent 4 }}
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  backoffLimit: 6
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: opa-init
+          image: "{{ .Values.opaInit.image.repository }}:{{ .Values.opaInit.image.tag }}"
+          workingDir: /app
+          command:
+            - sh
+            - -c
+            - |
+              until python -c "import urllib.request; urllib.request.urlopen('http://opa:{{ .Values.opa.service.port }}/health')" 2>/dev/null; do sleep 1; done
+              python ingest_policies.py --opa-url http://opa:{{ .Values.opa.service.port }} --opa-dir /app/opa
+          volumeMounts:
+            - { name: scripts,      mountPath: /app/ingest_policies.py, subPath: ingest_policies.py }
+            - { name: opa-policies, mountPath: /app/opa, readOnly: true }
+      volumes:
+        - { name: scripts, configMap: { name: dep-dlm-scripts, defaultMode: 0755 } }
+        - name: opa-policies
+          configMap:
+            name: opa-policies
+            # Keys are flattened paths ("odrl__data.json"); restore the tree.
+            # Same glob as the opa-policies ConfigMap (configmaps.yaml).
+            items:
+            {{- range $path, $_ := .Files.Glob "files/configs/opa/{authz.rego,odrl/*.json}" }}
+              {{- $rel := trimPrefix "files/configs/opa/" $path }}
+              - { key: {{ replace "/" "__" $rel }}, path: {{ $rel }} }
+            {{- end }}
+{{- end }}

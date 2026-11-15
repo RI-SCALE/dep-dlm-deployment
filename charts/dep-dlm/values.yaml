@@ -1,0 +1,204 @@
+# Shared core for every RI environment. Environments override only what
+# differs, in environments/<ri>/<stage>/values.yaml.
+#
+# Resource names are fixed (subchart values cannot be templated):
+#   Secret     dep-dlm-certs     host certificates and CA bundle
+#   Secret     dep-dlm-config    server.cfg, alembic.ini, idpsecrets.json,
+#                                fts3config, fts3restconfig, ... (see README)
+#   ConfigMap  dep-dlm-patches   Rucio/FTS patches and the OPA policy package
+#   ConfigMap  dep-dlm-scripts   bootstrap-db.py, ingest_policies.py
+#   ConfigMap  dep-dlm-fts-config, opa-evaluator, opa-policies
+
+# ── Secrets ─────────────────────────────────────────────────────────────────
+secretStore:
+  name: dep-dlm
+  provider: gcpsm                  # gcpsm (public cloud) | vault (on premise)
+  gcpsm:
+    projectID: ""
+    clusterLocation: ""            # zone of a zonal cluster, region otherwise
+    clusterName: ""
+    serviceAccount: { name: external-secrets, namespace: external-secrets }
+  vault:
+    server: ""                     # https://vault.example.org:8200
+    path: secret
+    version: v2
+    caBundle: ""                   # base64-encoded PEM, if not publicly trusted
+    kubernetesAuth:
+      mountPath: kubernetes
+      role: dep-dlm
+      serviceAccount: { name: external-secrets, namespace: external-secrets }
+
+secrets:
+  refreshInterval: 1h
+  certsKey: ""                     # remote key with the certificate bundle
+  configKey: ""                    # remote key with the configuration files
+
+# ── One-shot jobs ───────────────────────────────────────────────────────────
+bootstrapDb:
+  enabled: true
+  dbHost: ""                       # Rucio PostgreSQL, reachable from the cluster
+  image: { repository: rucio/rucio-server, tag: release-41.2.1 }
+
+opaInit:
+  enabled: true
+  image: { repository: python, tag: "3.12-slim" }   # verify: ingest_policies.py imports
+
+# ── Public endpoint (GKE Gateway; on premise brings its own ingress) ────────
+gateway:
+  enabled: false
+  className: gke-l7-global-external-managed
+  addressName: ""                  # reserved global address name
+  routes: []
+  # - name: rucio-server
+  #   hostname: rucio.example.org
+  #   service: rucio-server
+  #   port: 80
+  #   healthCheck: { type: HTTP, port: 80, path: /ping }
+
+# ── Components ──────────────────────────────────────────────────────────────
+rucio-server:
+  enabled: true
+  fullnameOverride: rucio-server
+  replicaCount: 1
+  image: { repository: rucio/rucio-server, tag: release-41.2.1, pullPolicy: IfNotPresent }
+  useSSL: false
+  service: { type: ClusterIP, port: 80, targetPort: 80 }
+  useDeprecatedImplicitSecrets: false
+  lifecycle: &caTrust
+    postStart:
+      exec:
+        command: [ /bin/bash, -c, "update-ca-trust extract" ]
+  additionalEnvs:
+    - { name: REQUESTS_CA_BUNDLE, value: /etc/pki/tls/certs/ca-bundle.crt }
+    - { name: OPA_URL,            value: http://opa:8181 }
+    - { name: OPA_POLICY_PATH,    value: vo/authz/v1/allow }
+    - { name: OPA_TIMEOUT,        value: "2" }
+    - { name: PROMETHEUS_MULTIPROC_DIR, value: /tmp }
+  secretMounts:
+    - &certsMount
+      secretFullName: dep-dlm-certs
+      volumeName: certs-grid
+      mountPath: /etc/grid-security
+      defaultMode: 0600
+      items:
+        - { key: hostcert.pem,          path: hostcert.pem, mode: 0644 }
+        - { key: hostkey.pem,           path: hostkey.pem, mode: 0600 }
+        - { key: hostcert_with_key.pem, path: hostcert_with_key.pem, mode: 0600 }
+        - { key: rucio_ca.pem,          path: certificates/rucio_ca.pem, mode: 0644 }
+        - { key: rucio_ca.pem,          path: certificates/5fca1cb1.0, mode: 0644 }
+        - { key: tls_ca_bundle.pem,     path: certificates/tls_ca_bundle.pem, mode: 0644 }
+    - { secretFullName: dep-dlm-config, volumeName: rucio-cfg-server,     mountPath: /opt/rucio/etc/rucio.cfg,        subPath: server.cfg }
+    - &alembicMount
+      { secretFullName: dep-dlm-config, volumeName: rucio-cfg-alembic,    mountPath: /opt/rucio/etc/alembic.ini,      subPath: alembic.ini }
+    - &idpsecretsMount
+      { secretFullName: dep-dlm-config, volumeName: rucio-cfg-idpsecrets, mountPath: /opt/rucio/etc/idpsecrets.json, subPath: idpsecrets.json }
+  configMounts: &rucioPatches
+    - { configMapFullName: dep-dlm-patches, volumeName: fts3-patch,           mountPath: /usr/local/lib/python3.9/site-packages/rucio/transfertool/fts3.py,             subPath: rucio--fts3.py }
+    - { configMapFullName: dep-dlm-patches, volumeName: oidc-patch,           mountPath: /usr/local/lib/python3.9/site-packages/rucio/core/oidc.py,                     subPath: rucio--oidc.py }
+    - { configMapFullName: dep-dlm-patches, volumeName: constants-patch,      mountPath: /usr/local/lib/python3.9/site-packages/rucio/common/constants.py,              subPath: rucio--constants.py }
+    - { configMapFullName: dep-dlm-patches, volumeName: rse-patch,            mountPath: /usr/local/lib/python3.9/site-packages/rucio/core/rse.py,                      subPath: rucio--rse.py }
+    - { configMapFullName: dep-dlm-patches, volumeName: authentication-patch, mountPath: /usr/local/lib/python3.9/site-packages/rucio/core/authentication.py,           subPath: rucio--authentication.py }
+    - { configMapFullName: dep-dlm-patches, volumeName: common-patch,         mountPath: /usr/local/lib/python3.9/site-packages/rucio/web/rest/flaskapi/v1/common.py,   subPath: rucio--common.py }
+    # Policy package, mounted into site-packages (see the testbed's values for why not pip).
+    - { configMapFullName: dep-dlm-patches, volumeName: opa-policy-init,       mountPath: /usr/local/lib/python3.9/site-packages/rucio_opa_v1_policy/__init__.py,   subPath: rucio--rucio_opa_v1_policy--src--rucio_opa_v1_policy--__init__.py }
+    - { configMapFullName: dep-dlm-patches, volumeName: opa-policy-client,     mountPath: /usr/local/lib/python3.9/site-packages/rucio_opa_v1_policy/opa_client.py, subPath: rucio--rucio_opa_v1_policy--src--rucio_opa_v1_policy--opa_client.py }
+    - { configMapFullName: dep-dlm-patches, volumeName: opa-policy-permission, mountPath: /usr/local/lib/python3.9/site-packages/rucio_opa_v1_policy/permission.py, subPath: rucio--rucio_opa_v1_policy--src--rucio_opa_v1_policy--permission.py }
+
+rucio-daemons:
+  enabled: true
+  fullnameOverride: rucio-daemons
+  image: { repository: rucio/rucio-daemons, tag: release-41.2.1, pullPolicy: IfNotPresent }
+  useDeprecatedImplicitSecrets: false
+  config:
+    conveyor:
+      cacert: /etc/grid-security/certificates/rucio_ca.pem
+      usercert: /etc/grid-security/hostcert_with_key.pem
+    monitor: { enable_metrics: "True", metrics_port: "8080" }
+  monitoring: { enabled: true, serviceMonitorEnabled: false }
+  lifecycle: *caTrust
+  conveyorTransferSubmitterCount: 1
+  conveyorPollerCount: 1
+  conveyorFinisherCount: 1
+  judgeEvaluatorCount: 1
+  judgeCleanerCount: 1
+  reaperCount: 1
+  undertakerCount: 1
+  conveyorTransferSubmitter: { threads: 1, sleepTime: 5, activities: "", resources: &daemonResources { requests: { memory: 512Mi, cpu: 50m }, limits: { memory: 1Gi, cpu: 500m } } }
+  conveyorPoller:            { threads: 1, sleepTime: 5, resources: *daemonResources }
+  conveyorFinisher:          { threads: 1, sleepTime: 5, resources: *daemonResources }
+  judgeEvaluator:            { threads: 1, sleepTime: 5, resources: *daemonResources }
+  judgeCleaner:              { threads: 1, sleepTime: 5, resources: *daemonResources }
+  reaper:                    { greedy: 1, threads: 1, sleepTime: 5, resources: *daemonResources }
+  undertaker:                { threads: 1, resources: *daemonResources }
+  additionalEnvs:
+    - { name: REQUESTS_CA_BUNDLE, value: /etc/pki/tls/certs/ca-bundle.crt }
+    - { name: OPA_URL,            value: http://opa:8181 }
+    - { name: OPA_POLICY_PATH,    value: vo/authz/v1/allow }
+    - { name: OPA_TIMEOUT,        value: "2" }
+  secretMounts:
+    - *certsMount
+    # Merged into rucio.cfg before the chart's own config (10_common.json).
+    - { secretFullName: dep-dlm-config, volumeName: rucio-cfg-server, mountPath: /opt/rucio/etc/conf.d/00_server.cfg, subPath: server.cfg }
+    - *alembicMount
+    - *idpsecretsMount
+  configMounts: *rucioPatches
+
+fts:
+  enabled: true
+  fullnameOverride: fts
+  image: { repository: mgajekcern/test-fts, tag: latest }   # pin to the validated digest/tag
+  ftsdb: { enabled: false }        # external MySQL, configured in fts3config
+  env:
+    - { name: REQUESTS_CA_BUNDLE, value: /etc/pki/tls/certs/ca-bundle.crt }
+  volumes:
+    - name: certs
+      secret:
+        secretName: dep-dlm-certs
+        defaultMode: 0600
+        items:
+          - { key: hostcert.pem,            path: hostcert.pem,            mode: 0600 }
+          - { key: hostkey.pem,             path: hostkey.pem,             mode: 0600 }
+          - { key: rucio_ca.pem,            path: rucio_ca.pem,            mode: 0644 }
+          - { key: 5fca1cb1.0,              path: 5fca1cb1.0,              mode: 0644 }
+          - { key: 5fca1cb1.signing_policy, path: 5fca1cb1.signing_policy, mode: 0644 }
+    - name: config
+      secret:
+        secretName: dep-dlm-config
+        items:
+          - { key: fts3config,           path: fts3config,           mode: 0644 }
+          - { key: fts3restconfig,       path: fts3restconfig,       mode: 0644 }
+          - { key: docker-entrypoint.sh, path: docker-entrypoint.sh, mode: 0755 }
+    - { name: fts-config, configMap: { name: dep-dlm-fts-config } }
+    - { name: patches,    configMap: { name: dep-dlm-patches } }
+  volumeMounts:
+    - { name: certs,      mountPath: /etc/grid-security/hostcert.pem, subPath: hostcert.pem }
+    - { name: certs,      mountPath: /etc/grid-security/hostkey.pem,  subPath: hostkey.pem }
+    - { name: certs,      mountPath: /etc/grid-security/certificates/5fca1cb1.0,              subPath: 5fca1cb1.0 }
+    - { name: certs,      mountPath: /etc/grid-security/certificates/5fca1cb1.signing_policy, subPath: 5fca1cb1.signing_policy }
+    - { name: certs,      mountPath: /etc/pki/ca-trust/source/anchors/rucio-ca.crt, subPath: rucio_ca.pem }
+    - { name: config,     mountPath: /etc/fts3/fts3config,     subPath: fts3config }
+    - { name: config,     mountPath: /etc/fts3/fts3restconfig, subPath: fts3restconfig }
+    - { name: config,     mountPath: /docker-entrypoint.sh,    subPath: docker-entrypoint.sh }
+    - { name: fts-config, mountPath: /etc/gfal2.d/http_plugin.conf, subPath: gfal2_http_plugin.conf }
+    - { name: patches,    mountPath: /tmp/fts-rest-flask/src/fts3rest/fts3rest/config/middleware.py,               subPath: fts--middleware.py }
+    - { name: patches,    mountPath: /tmp/fts-rest-flask/src/fts3rest/fts3rest/lib/openidconnect.py,               subPath: fts--openidconnect.py }
+    - { name: patches,    mountPath: /tmp/fts-rest-flask/src/fts3rest/fts3rest/lib/JobBuilder.py,                  subPath: fts--JobBuilder.py }
+    - { name: patches,    mountPath: /tmp/fts-rest-flask/src/fts3rest/fts3rest/model/cloudStorage.py,              subPath: fts--cloudStorage.py }
+    - { name: patches,    mountPath: /tmp/fts-rest-flask/src/fts3rest/fts3rest/controllers/config/cloud.py,        subPath: fts--cloud.py }
+    - { name: patches,    mountPath: /tmp/fts-rest-flask/src/fts3rest/fts3rest/controllers/config/tokenproviders.py, subPath: fts--tokenproviders.py }
+
+opa:
+  enabled: true
+  fullnameOverride: opa            # rucio-server/-daemons use OPA_URL=http://opa:8181
+  image: { tag: "1.8.0-static" }
+  service: { port: 8181 }
+  resources:
+    requests: { cpu: 50m, memory: 64Mi }
+    limits:   { memory: 256Mi }
+  # ODRL evaluator loaded at start-up (its modules are cyclic; see the testbed).
+  extraArgs: [ "--ignore=..*", /policies/dep ]
+  volumes:      [ { name: evaluator, configMap: { name: opa-evaluator } } ]
+  volumeMounts: [ { name: evaluator, mountPath: /policies/dep, readOnly: true } ]
+
+observability:
+  enabled: false
