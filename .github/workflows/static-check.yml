@@ -1,0 +1,52 @@
+name: Static checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  helm:
+    name: Helm lint
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+      - uses: azure/setup-helm@v4
+        with:
+          version: v3.17.3
+      - run: make lint          # vendored subcharts, no helm-git needed
+
+  terraform:
+    name: Terraform fmt + validate
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.15.8"
+          terraform_wrapper: false
+      - run: terraform fmt -check -recursive terraform
+      - name: validate
+        run: |
+          for d in terraform/environments/onprem/*/; do
+            terraform -chdir="$d" init -backend=false -input=false
+            terraform -chdir="$d" validate
+          done
+
+  generated:
+    name: Generated files up to date
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install terraform-docs
+        env:
+          TFDOCS_VERSION: v0.24.0
+        run: |
+          curl -sSL "https://github.com/terraform-docs/terraform-docs/releases/download/${TFDOCS_VERSION}/terraform-docs-${TFDOCS_VERSION}-linux-amd64.tar.gz" \
+            | tar -xz -C /tmp terraform-docs
+          sudo mv /tmp/terraform-docs /usr/local/bin/
+      - name: Terraform docs
+        run: |
+          make tf-docs
+          git diff --exit-code -- terraform || { echo "::error::run 'make tf-docs' and commit"; exit 1; }

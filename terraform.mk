@@ -14,6 +14,9 @@ KUBE_DIR      := $(CURDIR)/.kube
 AUTO_APPROVE  ?=
 TF_APPROVE     = $(if $(filter 1,$(AUTO_APPROVE)),-auto-approve,)
 
+TF_DOC_DIRS = terraform/environments/onprem/infra terraform/environments/onprem/vault \
+              terraform/modules/networking terraform/modules/onprem-node terraform/modules/vault-config
+
 # OIDC inputs (vault root, validation storage), per IdP profile (same values as the testbed's Makefile).
 SCOPE_PROFILE          ?= egi-dev
 TOKEN_MODE             ?= managed
@@ -83,6 +86,14 @@ tf-destroy: ## Destroy TF_ENV
 
 tf-output: ## Show TF_ENV's outputs
 	$(TERRAFORM) output
+
+.PHONY: tf-docs
+tf-docs: ## Inject Terraform reference docs into each root's/module's README.md (needs terraform-docs)
+	@command -v terraform-docs >/dev/null 2>&1 || { echo "terraform-docs not found (see .devcontainer/setup.sh)" >&2; exit 1; }
+	@for dir in $(TF_DOC_DIRS); do \
+	  echo "==> $$dir/README.md"; \
+	  terraform-docs markdown table --sort-by required --output-file README.md --output-mode inject "$$dir"; \
+	done
 
 .PHONY: onprem-kubeconfig onprem-tunnel onprem-vault-init onprem-vault-apply onprem-smoke-test
 onprem-kubeconfig: ## Fetch the node's kubeconfig (.kube/config-onprem) and cluster CA via IAP
