@@ -1,0 +1,24 @@
+Alias = rucio/fts
+SiteName = ${site_name}
+
+AuthorizedVO = *
+
+DbType = mysql
+DbUserName = fts
+DbPassword = ${fts_db_password}
+DbConnectString = ${fts_db_host}/fts
+
+LogLevel = DEBUG
+
+MinRequiredFreeRAM = 16
+MaxUrlCopyProcesses = 4
+
+StagingBulkSize = 1
+StagingWaitingFactor = 1
+
+%{ if fts_resource_profile != "" ~}
+OidcResourceIndicatorProfile=${fts_resource_profile}
+%{ endif ~}
+
+[roles]
+Public = all:transfer;all:config;all:datamanagement

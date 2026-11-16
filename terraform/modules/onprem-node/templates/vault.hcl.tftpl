@@ -1,0 +1,17 @@
+# Single-node Vault, file storage. Reachable from pods on the node IP and
+# from admins only through an IAP tunnel (firewall). TLS certificate from
+# the testbed CA (generate-certs.sh with VAULT_SAN), so the
+# ClusterSecretStore's caBundle is the testbed's rucio_ca.pem.
+ui            = true
+disable_mlock = true
+api_addr      = "https://${internal_ip}:8200"
+
+storage "file" {
+  path = "/opt/vault/data"
+}
+
+listener "tcp" {
+  address       = "0.0.0.0:8200"
+  tls_cert_file = "/opt/vault/tls/vault.crt"
+  tls_key_file  = "/opt/vault/tls/vault.key"
+}

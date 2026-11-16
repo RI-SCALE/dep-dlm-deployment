@@ -1,0 +1,175 @@
+#!/usr/bin/env bash
+# Rendered by terraform/modules/onprem-node. Runs on every boot.
+# One-time steps leave a marker in /var/lib/dep-dlm/; database users,
+# Vault TLS files and the Vault unseal run on every boot.
+set -euo pipefail
+exec > >(tee -a /var/log/dep-dlm-startup.log) 2>&1
+echo "=== dep-dlm startup $(date -Is) ==="
+
+STATE=/var/lib/dep-dlm
+mkdir -p "$STATE" /etc/dep-dlm
+step_done() { [ -f "$STATE/$1.done" ]; }
+mark()      { touch "$STATE/$1.done"; echo "  ✓ $1"; }
+export DEBIAN_FRONTEND=noninteractive
+
+if ! step_done base; then
+  apt-get update -qq
+  apt-get install -y -qq jq curl gpg ca-certificates apt-transport-https
+  mark base
+fi
+
+# --- Secret Manager, via the VM's own service account ------------------------
+access_token() {
+  curl -sf -H 'Metadata-Flavor: Google' \
+    http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token \
+    | jq -r .access_token
+}
+secret_payload() {   # $1 = projects/<p>/secrets/<id>; fails if no version yet
+  curl -sf -H "Authorization: Bearer $(access_token)" \
+    "https://secretmanager.googleapis.com/v1/$1/versions/latest:access" \
+    | jq -r .payload.data | base64 -d
+}
+
+NODE_SECRET="$(secret_payload "${node_secret_id}")"
+node_value() { jq -r --arg k "$1" '.[$k]' <<<"$NODE_SECRET"; }
+node_value rucio_ca.pem > /etc/dep-dlm/rucio_ca.pem
+
+# --- PostgreSQL (Rucio) -------------------------------------------------------
+if ! step_done postgres; then
+  apt-get install -y -qq postgresql
+  PGCONF="$(ls -d /etc/postgresql/*/main | head -1)"
+  sed -i "s/^#\?listen_addresses.*/listen_addresses = '*'/" "$PGCONF/postgresql.conf"
+  cat >> "$PGCONF/pg_hba.conf" <<HBA
+# dep-dlm: pods (Rucio, bootstrap job, exporters) and the node subnet
+host  rucio  rucio  ${pod_cidr}     scram-sha-256
+host  rucio  rucio  ${subnet_cidr}  scram-sha-256
+HBA
+  systemctl restart postgresql
+  mark postgres
+fi
+sudo -u postgres psql -q -v ON_ERROR_STOP=1 -v pw="$(node_value rucio_db_password)" <<'SQL'
+SELECT 'CREATE ROLE rucio LOGIN' WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'rucio')\gexec
+ALTER ROLE rucio WITH LOGIN PASSWORD :'pw';
+SELECT 'CREATE DATABASE rucio OWNER rucio' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'rucio')\gexec
+SQL
+echo "  ✓ postgres user/database"
+
+# --- MySQL (FTS) ------------------------------------------------------------------
+if ! step_done mysql; then
+  apt-get install -y -qq mysql-server
+  cat > /etc/mysql/mysql.conf.d/zz-dep-dlm.cnf <<CNF
+[mysqld]
+bind-address = 0.0.0.0
+# FTS schema upgrades create triggers/functions
+log_bin_trust_function_creators = 1
+CNF
+  systemctl restart mysql
+  mark mysql
+fi
+FTS_PW="$(node_value fts_db_password)"
+mysql <<SQL
+CREATE DATABASE IF NOT EXISTS fts;
+CREATE USER IF NOT EXISTS 'fts'@'%' IDENTIFIED BY '$FTS_PW';
+ALTER USER 'fts'@'%' IDENTIFIED BY '$FTS_PW';
+GRANT ALL PRIVILEGES ON fts.* TO 'fts'@'%';
+FLUSH PRIVILEGES;
+SQL
+unset FTS_PW
+echo "  ✓ mysql user/database"
+
+# --- Vault --------------------------------------------------------------------------
+if ! step_done vault-pkg; then
+  curl -fsSL https://apt.releases.hashicorp.com/gpg | gpg --dearmor --yes -o /usr/share/keyrings/hashicorp.gpg
+  echo "deb [signed-by=/usr/share/keyrings/hashicorp.gpg] https://apt.releases.hashicorp.com $(. /etc/os-release; echo "$VERSION_CODENAME") main" \
+    > /etc/apt/sources.list.d/hashicorp.list
+  apt-get update -qq
+  apt-get install -y -qq vault
+  mark vault-pkg
+fi
+install -d -o vault -g vault -m 0750 /opt/vault/tls /opt/vault/data
+{ node_value vaultcert.pem; node_value rucio_ca.pem; } > /opt/vault/tls/vault.crt
+node_value vaultkey.pem > /opt/vault/tls/vault.key
+chown vault:vault /opt/vault/tls/vault.crt /opt/vault/tls/vault.key
+chmod 0600 /opt/vault/tls/vault.key
+cat > /etc/vault.d/vault.hcl <<'HCL'
+${vault_hcl}
+HCL
+systemctl enable vault >/dev/null 2>&1
+systemctl restart vault
+
+VAULT=https://127.0.0.1:8200
+for _ in $(seq 1 30); do
+  curl -s --cacert /etc/dep-dlm/rucio_ca.pem -o /dev/null "$VAULT/v1/sys/health" && break
+  sleep 2
+done
+# Unseal after a reboot, once scripts/vault-init.sh has stored the key.
+if INIT="$(secret_payload "${vault_init_secret_id}" 2>/dev/null)" && [ -n "$INIT" ]; then
+  KEY="$(jq -r '.keys_base64[0]' <<<"$INIT")"
+  jq -n --arg key "$KEY" '{key: $key}' \
+    | curl -s --cacert /etc/dep-dlm/rucio_ca.pem -X PUT --data @- "$VAULT/v1/sys/unseal" >/dev/null
+  unset INIT KEY
+  echo "  ✓ vault unsealed"
+else
+  echo "  - vault not initialised yet: run scripts/vault-init.sh"
+fi
+
+# --- Kubernetes (kubeadm, single node) ---------------------------------------------------
+if ! step_done k8s-pkgs; then
+  swapoff -a
+  sed -i '/\sswap\s/ s/^/#/' /etc/fstab
+  printf 'overlay\nbr_netfilter\n' > /etc/modules-load.d/k8s.conf
+  modprobe overlay
+  modprobe br_netfilter
+  cat > /etc/sysctl.d/99-kubernetes.conf <<SYSCTL
+net.bridge.bridge-nf-call-iptables  = 1
+net.bridge.bridge-nf-call-ip6tables = 1
+net.ipv4.ip_forward                 = 1
+SYSCTL
+  sysctl --system >/dev/null
+
+  apt-get install -y -qq containerd
+  mkdir -p /etc/containerd
+  containerd config default > /etc/containerd/config.toml
+  sed -i 's/SystemdCgroup = false/SystemdCgroup = true/' /etc/containerd/config.toml
+  systemctl restart containerd
+
+  curl -fsSL "https://pkgs.k8s.io/core:/stable:/v${kubernetes_minor}/deb/Release.key" \
+    | gpg --dearmor --yes -o /usr/share/keyrings/kubernetes.gpg
+  echo "deb [signed-by=/usr/share/keyrings/kubernetes.gpg] https://pkgs.k8s.io/core:/stable:/v${kubernetes_minor}/deb/ /" \
+    > /etc/apt/sources.list.d/kubernetes.list
+  apt-get update -qq
+  apt-get install -y -qq kubelet kubeadm kubectl
+  apt-mark hold kubelet kubeadm kubectl >/dev/null
+  systemctl enable kubelet >/dev/null 2>&1
+  mark k8s-pkgs
+fi
+
+export KUBECONFIG=/etc/kubernetes/admin.conf
+if ! step_done kubeadm; then
+  cat > /etc/dep-dlm/kubeadm.yaml <<'YAML'
+${kubeadm_config}
+YAML
+  kubeadm init --config /etc/dep-dlm/kubeadm.yaml
+  kubectl apply -f "https://github.com/flannel-io/flannel/releases/download/${flannel_version}/kube-flannel.yml"
+  kubectl apply -f "https://raw.githubusercontent.com/rancher/local-path-provisioner/${local_path_version}/deploy/local-path-storage.yaml"
+  kubectl patch storageclass local-path \
+    -p '{"metadata":{"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
+  mark kubeadm
+fi
+
+# Validation storage hostname for pods, independent of the node's DNS.
+VALSTORAGE_HOST="${valstorage_hostname}"
+VALSTORAGE_IP="${valstorage_ip}"
+if [ -n "$VALSTORAGE_HOST" ] && ! step_done coredns-hosts; then
+  kubectl -n kube-system rollout status deploy/coredns --timeout=600s
+  kubectl -n kube-system get configmap coredns -o jsonpath='{.data.Corefile}' > /tmp/Corefile
+  if ! grep -q "$VALSTORAGE_HOST" /tmp/Corefile; then
+    sed -i "s|^\(\s*\)forward \. |\1hosts {\n\1    $VALSTORAGE_IP $VALSTORAGE_HOST\n\1    fallthrough\n\1}\n\1forward . |" /tmp/Corefile
+    kubectl -n kube-system create configmap coredns --from-file=Corefile=/tmp/Corefile \
+      --dry-run=client -o yaml | kubectl apply -f -
+    kubectl -n kube-system rollout restart deploy/coredns
+  fi
+  mark coredns-hosts
+fi
+
+echo "=== dep-dlm startup done $(date -Is) ==="

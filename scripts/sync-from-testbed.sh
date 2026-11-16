@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Copy the files the chart deploys from a validated dep-dlm-testbed commit
-# and pin the testbed subcharts (fts, opa, observability) to the same commit.
+# Copy the files the chart deploys (and the secret templates/IdP profiles
+# terraform/modules/vault-config renders) from a validated dep-dlm-testbed
+# commit, and pin the testbed subcharts (fts, opa, observability) to it.
 #
 #   scripts/sync-from-testbed.sh <sha|tag|branch>      # fetched from GitHub
 #   scripts/sync-from-testbed.sh ../dep-dlm-testbed    # or a local checkout
@@ -55,6 +56,22 @@ for p in "${ALLOW[@]}"; do
   cp -R "${TESTBED}/${p}" "${FILES}/${p}"
 done
 find "$FILES" -name '*_test.rego' -delete
+
+# Inputs of terraform/modules/vault-config: the testbed's secret templates and
+# the IdP profile files its modules/secrets reads, at the same commit.
+VAULT_CONFIG="${REPO_ROOT}/terraform/modules/vault-config"
+if [[ -d "$VAULT_CONFIG" ]]; then
+  rm -rf "${VAULT_CONFIG}/templates" "${VAULT_CONFIG}/profiles"
+  mkdir -p "${VAULT_CONFIG}/templates"
+  cp "${TESTBED}"/deploy/terraform/modules/secrets/templates/*.tftpl "${VAULT_CONFIG}/templates/"
+  for f in "${TESTBED}"/configs/rucio/*/idpsecrets.json.example "${TESTBED}"/configs/fts/*/fts3config; do
+    [[ -f "$f" ]] || continue
+    rel="${f#"${TESTBED}"/configs/}"               # rucio/<profile>/... or fts/<profile>/...
+    case "$(basename "$(dirname "$rel")")" in rucio|fts) continue ;; esac   # top-level sandbox files
+    mkdir -p "${VAULT_CONFIG}/profiles/$(dirname "$rel")"
+    cp "$f" "${VAULT_CONFIG}/profiles/${rel}"
+  done
+fi
 
 sed -i.bak -E "s#(dep-dlm-testbed(\.git)?@[^?\"]+\?ref=)[^\"]+#\1${SHA}#" "$CHART_YAML"
 
