@@ -1,0 +1,6 @@
+# Normally not needed: the make targets pass project_id, region (testbed
+# bootstrap outputs), certs_dir (CERTS_DIR) and the OIDC values for SCOPE_PROFILE.
+
+# node_internal_ip  = "10.40.0.10"   # must match VAULT_SAN used for the Vault certificate
+# public_ports      = ["80", "443"]  # once an ingress controller exposes Rucio/FTS
+# teapot_extra_subs = []             # client_credentials / human subs for Teapot

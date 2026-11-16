@@ -1,0 +1,26 @@
+apiVersion: kubeadm.k8s.io/v1beta4
+kind: InitConfiguration
+localAPIEndpoint:
+  advertiseAddress: ${internal_ip}
+  bindPort: 6443
+nodeRegistration:
+  name: ${node_name}
+  criSocket: unix:///run/containerd/containerd.sock
+  taints: []   # single node: workloads run on the control plane
+---
+apiVersion: kubeadm.k8s.io/v1beta4
+kind: ClusterConfiguration
+kubernetesVersion: ${kubernetes_version}
+apiServer:
+  certSANs:   # 127.0.0.1/localhost: reached through an IAP tunnel
+    - 127.0.0.1
+    - localhost
+    - ${internal_ip}
+    - ${external_ip}
+networking:
+  podSubnet: ${pod_cidr}
+  serviceSubnet: ${service_cidr}
+---
+apiVersion: kubelet.config.k8s.io/v1beta1
+kind: KubeletConfiguration
+cgroupDriver: systemd

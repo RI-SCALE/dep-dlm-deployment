@@ -1,0 +1,33 @@
+# On-premise reference: a single kubeadm node on a GCE VM, with PostgreSQL,
+# MySQL and Vault on the node outside Kubernetes (terraform/environments/onprem).
+# Values from `terraform -chdir=terraform/environments/onprem/vault output`
+# and the infra outputs; node_internal_ip defaults to 10.40.0.10.
+# Only what differs from charts/dep-dlm/values.yaml.
+
+secretStore:
+  provider: vault
+  vault:
+    server: https://10.40.0.10:8200              # output vault_server
+    path: secret
+    version: v2
+    # base64 of the testbed CA (output ca_bundle); Vault's certificate comes from it
+    caBundle: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSURIekNDQWdlZ0F3SUJBZ0lVUDltNHlhUW1NNDVnN0JWWWRTczk0VG9TNlBnd0RRWUpLb1pJaHZjTkFRRUwKQlFBd0h6RWRNQnNHQTFVRUF3d1VVblZqYVc4Z1JHVjJaV3h2Y0cxbGJuUWdRMEV3SGhjTk1qTXdOREExTURndwpORFF4V2hjTk5EY3hNVEkxTURnd05EUXhXakFmTVIwd0d3WURWUVFEREJSU2RXTnBieUJFWlhabGJHOXdiV1Z1CmRDQkRRVENDQVNJd0RRWUpLb1pJaHZjTkFRRUJCUUFEZ2dFUEFEQ0NBUW9DZ2dFQkFLcmFQYk84U2txajZOQWMKcWJPUTBIMGY4bTRzZVdkTjVoeXBPMUlXd1BPM3F3SDUxc25TdE0wL1FVQWV4V3FWVW1vT0doQzZOZnNGVkV4agoxRml0bEpDaXdsUlVtV0RwTWVWbGVYNlRTdnpvSDdLUUh6bG14bldKODN5czcra2FkeXNxNDdaOEVWa0thZWtVCi82NEtVamtpK09RcjVuVTFjelVBNUkzd2VEdjB2TzhBVHh4bGZSWXgvKzJwZkdMdDNhMlk2bEZhRlVvNUx4TXUKL3ZhQ1JQNUpwQU1MOWNVampFV1E1OUM5eVFpcGtqTCtFY3ZDbGpRdW5GMzRuODR0YVNOcXBjd1RvSzhiZVRDQwo1ZU5EcDFsblErSVEwa2pqTXh1a01obHdCWFBQaEYyUGQrYTkxSVJqMXprT2xWWjA4cjZra2w2ZzlCQ3lobjViCnFZTkZuOXNDQXdFQUFhTlRNRkV3SFFZRFZSME9CQllFRklDa1FHazQ0SUVrTHo1WjdiTjhKWTUwL0s2cE1COEcKQTFVZEl3UVlNQmFBRklDa1FHazQ0SUVrTHo1WjdiTjhKWTUwL0s2cE1BOEdBMVVkRXdFQi93UUZNQU1CQWY4dwpEUVlKS29aSWh2Y05BUUVMQlFBRGdnRUJBSGlhSWVxa1gwM3cyMG5lTnlvc28yRXhqY1JvdzhZYmdYdEQxdTRjCmxlYmMway81dy9EREExZDhaemZWVCs1TjVYUnRLcysvQzJvSTZCdy9HWHI3UXhVQnlOZUt0bnM4K0JXQUhjaHEKSjk0eDhNYmZaUjFNVVJXaEJKbzJNUW5VS2lWMGp0Yk5JR09LeHp3aHcvK2hCcXk3WjB5L1pqVUhuQk5qa3drQgo5cHkydlU1MW9KUU1EUHBadWp0aEZ3ZVM3QWFqRUNqalZnMHdzWFVqcyt5ZDNzL3dKR0lQaE02cldLMzFhbkpPClpIKzQxc2FoNHFHTVR0QmEyTGRzVUhoSERwbDluU3RUVHU4V05TMGhVb0JRaGhsQ3o2YUZrNVZPUS84RDY1K0EKV05VRE9CRU51U3VnaU44VFBUdXgxZUhNUXVYL1ZmTzdsWFZENWRlOWFROC9aaFE9Ci0tLS0tRU5EIENFUlRJRklDQVRFLS0tLS0K
+    kubernetesAuth:
+      mountPath: kubernetes
+      role: dep-dlm
+      serviceAccount: { name: external-secrets, namespace: external-secrets }
+
+secrets:
+  certsKey: dep-dlm-onprem/certs                 # output certs_key
+  configKey: dep-dlm-onprem/config               # output config_key
+
+bootstrapDb:
+  dbHost: 10.40.0.10                             # infra output rucio_database_host
+
+# No GKE Gateway on premise; Rucio/FTS exposure via an ingress is still open.
+gateway:
+  enabled: false
+
+# GMP PodMonitorings are GKE-only.
+observability:
+  enabled: false

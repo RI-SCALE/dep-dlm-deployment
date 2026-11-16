@@ -1,0 +1,3 @@
+# Normally not needed: `make onprem-vault-apply` passes state_bucket,
+# certs_dir, kubernetes_ca_cert_file, the OIDC values for SCOPE_PROFILE and
+# VAULT_TOKEN. Set OIDC_CLIENT_SECRET in the environment.
