@@ -1,10 +1,15 @@
 # terraform
 
 Infrastructure for the **on-premise reference**: one GCE VM shaped like a
-partner site, a single-node kubeadm cluster with PostgreSQL (Rucio), MySQL
-(FTS) and Vault outside Kubernetes, plus a validation storage. It exercises
-what GKE staging doesn't: databases and secret store outside the cluster,
-`secretStore.provider: vault`, no GKE Gateway.
+partner site, a single-node kubeadm cluster with self-managed PostgreSQL
+(Rucio), MySQL (FTS) and Vault on the same machine, plus a validation
+storage. Where GKE staging relies on managed services (GKE, Cloud SQL,
+Secret Manager with Workload Identity, GKE Gateway), this runs what a
+partner operates themselves: kubeadm with Flannel and local-path storage,
+databases installed on the host, `secretStore.provider: vault` with
+Kubernetes auth, and no cloud load balancer. Secret Manager is only used
+to bootstrap the VMs (node secrets, Vault's init response, the validation
+storage's certificates), not by the workloads.
 
 It runs in the **testbed's staging project**, which `dep-dlm-testbed` owns
 (project, APIs, state bucket, CI identity, OS Login, IAP). This repo adds
@@ -24,11 +29,14 @@ terraform/
 └── tests/              # pod-based smoke test
 ```
 
+Inputs and outputs of each root and module: their `README.md` (`make tf-docs`).
+
 ## Prerequisites
 
 - The testbed's bootstrap applied with `iap.googleapis.com`, and you in its
   `os_login_admins`. For CI from this repo, `additional_github_repos` must
-  list `RI-SCALE/dep-dlm-deployment`.
+  list `RI-SCALE/dep-dlm-deployment` and `terraform_ci_extra_roles` must
+  grant staging networkAdmin, IAP and OS Login.
 - `gcloud auth login` and `gcloud auth application-default login`.
 - The testbed's staging project, region and state bucket, exported (or read
   from an initialised `TESTBED_BOOTSTRAP`, default
@@ -53,8 +61,11 @@ there until it supports `VAULT_SAN`):
 ```
 
 Pods reach the validation storage by hostname, so no IP is needed up front.
-Regenerating means re-applying both roots; the vault root's `ca_bundle`
-output must match `caBundle` in `environments/reference-onprem/staging/values.yaml`.
+Regenerating means re-applying both roots and resetting both VMs, which
+read their certificates only at boot (`gcloud compute instances reset
+dep-dlm-onprem-node dep-dlm-onprem-validation-storage --zone <zone>`). The
+vault root's `ca_bundle` output must match `caBundle` in
+`environments/reference-onprem/staging/values.yaml`.
 
 ## First deployment
 
@@ -91,19 +102,31 @@ kubectl get nodes && make argocd-open
 ```
 
 The startup log: `gcloud compute ssh dep-dlm-onprem-node --zone <zone>
---tunnel-through-iap --command 'sudo tail -f /var/log/dep-dlm-startup.log'`.
+--project "$GCP_PROJECT_ID" --tunnel-through-iap --command 'sudo tail -f /var/log/dep-dlm-startup.log'`.
 
 ## Reference-only shortcuts
 
 - Vault: one unseal key, file storage, init response (incl. root token) in
   Secret Manager so the VM unseals itself after a reboot.
-- The testbed CA's private key is in the testbed repo.
+- The testbed CA's private key sits in the testbed's `certs/`: anyone with
+  it can mint certificates every environment trusts.
 - This repo's CI acts as the testbed's `dep-dlm-terraform-ci` in staging.
+- The validation storage's storage ports (1094, 1095, 8081, 8082) are open
+  to the internet, as on testbed staging.
 - Rucio and FTS have no ingress yet, so the testbed's E2E tests can't target
   this environment (`public_ports` opens the firewall once one exists).
 
 ## Teardown
 
-`make tf-destroy TF_ENV=onprem/vault` (optional), then
-`make tf-destroy TF_ENV=onprem/infra`, and `rm -rf .kube/`. That removes only
-this repo's resources; the project, bucket and IAM belong to the testbed.
+`make tf-destroy TF_ENV=onprem/infra` removes the node (and with it Vault,
+the databases and the cluster), the validation storage, VPC, DNS zone and
+secrets. Then drop the vault root's state, which only described the deleted
+Vault, and the local kubeconfig:
+
+```bash
+gsutil rm -r "gs://$TF_STATE_BUCKET/onprem/vault"
+rm -rf .kube/
+```
+
+That removes only this repo's resources; the project, bucket and IAM belong
+to the testbed.
