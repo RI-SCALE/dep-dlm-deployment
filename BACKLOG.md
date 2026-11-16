@@ -10,7 +10,12 @@
 ## Later
 - [ ] On-premise reference: `infra/reference-onprem/` (Terraform: GCE VM, kubeadm/RKE2,
       PostgreSQL + MySQL + Vault on the VM) and `environments/reference/onprem/`
-      (`secretStore.provider: vault`, no Gateway); run the testbed E2E tests against it
+      (`secretStore.provider: vault`, no Gateway)
+- [ ] On-premise reference CI (apply/smoke/destroy like the testbed's
+      _terraform-apply/-destroy): needs compute.networkAdmin,
+      iap.tunnelResourceAccessor and compute.osAdminLogin for the CI SA in
+      the testbed's bootstrap, VAULT_SAN merged in the testbed, and an
+      ingress so the E2E transfer tests can target it.
 - [x] Replace vendor/ submodules: publish testbed subcharts to OCI, source rucio charts from
       upstream (or the fork via OCI), copy the deployed patches/scripts/configs in place via
       an allowlisted `make sync`, recording the testbed commit in PROMOTION.md
