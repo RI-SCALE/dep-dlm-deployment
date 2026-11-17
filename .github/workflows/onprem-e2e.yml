@@ -1,0 +1,230 @@
+name: On-premise reference E2E
+
+# Apply the on-premise reference (kubeadm node, validation storage), load
+# Vault, bootstrap Argo CD, run the testbed's E2E against it, destroy.
+# Everything project-specific comes from inputs (defaults: the testbed's
+# staging project); only the OIDC client secrets are repository secrets.
+#
+# Argo CD renders env.yaml's baseRevision/envRevision from git, so they must
+# name the ref this workflow runs on (checked below).
+
+on:
+  workflow_dispatch:
+    inputs:
+      gcp_project_id:
+        description: "GCP project (testbed bootstrap output project_ids.staging)"
+        required: true
+        default: dep-dlm-staging-e52e0d90
+      gcp_region:
+        description: "GCP region"
+        required: true
+        default: europe-west3
+      tf_state_bucket:
+        description: "Terraform state bucket (prefixes onprem/infra, onprem/vault)"
+        required: true
+        default: dep-dlm-tfstate-staging-dep-dlm-staging-e52e0d90
+      workload_identity_provider:
+        description: "WIF provider (testbed bootstrap output workload_identity_providers.staging)"
+        required: true
+        default: projects/738996403212/locations/global/workloadIdentityPools/github-actions-pool/providers/github-actions-provider
+      service_account:
+        description: "Terraform CI service account"
+        required: true
+        default: dep-dlm-terraform-ci@dep-dlm-staging-e52e0d90.iam.gserviceaccount.com
+      scope_profile:
+        description: "OIDC profile"
+        required: true
+        type: choice
+        options: [egi-dev, ls-aai-dev]
+        default: egi-dev
+      token_mode:
+        description: "Token mode (profile-default: unmanaged for egi-dev, managed for ls-aai-dev)"
+        required: true
+        type: choice
+        options: [profile-default, managed, unmanaged]
+        default: profile-default
+      testbed_ref:
+        description: "dep-dlm-testbed ref (certs, E2E suite)"
+        required: true
+        default: main
+      run_e2e:
+        description: "Run the testbed's E2E (otherwise stop after the /ping check)"
+        type: boolean
+        default: true
+      destroy:
+        description: "Destroy everything in the state at the end (also on failure), including a deployment this run reused"
+        type: boolean
+        default: false
+
+concurrency:
+  group: onprem-${{ inputs.gcp_project_id }}   # one state, one run at a time
+  cancel-in-progress: false
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  TF_IN_AUTOMATION: "true"
+  TF_INPUT: "false"
+  GCP_PROJECT_ID: ${{ inputs.gcp_project_id }}
+  GCP_REGION: ${{ inputs.gcp_region }}
+  TF_STATE_BUCKET: ${{ inputs.tf_state_bucket }}
+  SCOPE_PROFILE: ${{ inputs.scope_profile }}
+  OIDC_CLIENT_SECRET: ${{ inputs.scope_profile == 'ls-aai-dev' && secrets.LS_AAI_DEV_OIDC_CLIENT_SECRET || secrets.EGI_DEV_OIDC_CLIENT_SECRET }}
+  AUTO_APPROVE: "1"
+  ENV_PATH: reference-onprem/staging
+  NS: dep-dlm-staging
+  INFRA: terraform -chdir=terraform/environments/onprem/infra
+
+defaults:
+  run:
+    shell: bash
+    working-directory: dep-dlm-deployment   # ../dep-dlm-testbed as in the devcontainer
+
+jobs:
+  onprem-e2e:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v6
+        with: { path: dep-dlm-deployment }
+
+      - uses: actions/checkout@v6
+        with:
+          repository: RI-SCALE/dep-dlm-testbed
+          ref: ${{ inputs.testbed_ref }}
+          path: dep-dlm-testbed
+
+      - name: Token mode
+        run: |
+          [[ "${{ inputs.token_mode }}" == profile-default ]] || echo "TOKEN_MODE=${{ inputs.token_mode }}" >> "$GITHUB_ENV"
+          [[ -n "$OIDC_CLIENT_SECRET" ]] || { echo "::error::OIDC client secret for ${SCOPE_PROFILE} missing (repository secret)"; exit 1; }
+
+      - name: Argo CD renders this ref
+        run: |
+          for k in baseRevision envRevision; do
+            rev=$(yq ".${k}" "environments/${ENV_PATH}/env.yaml")
+            [[ "$rev" == "$GITHUB_REF_NAME" ]] || {
+              echo "::error::environments/${ENV_PATH}/env.yaml ${k}=${rev}, but this run is on ${GITHUB_REF_NAME}"; exit 1; }
+          done
+
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ inputs.workload_identity_provider }}
+          service_account: ${{ inputs.service_account }}
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.15.8"
+          terraform_wrapper: false   # keep `output -raw` clean
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Tools
+        run: |
+          pip install --break-system-packages pytest requests numpy
+          ssh-keygen -t rsa -N '' -q -f ~/.ssh/google_compute_engine   # gcloud compute ssh (OS Login)
+
+      # ── certificates ────────────────────────────────────────────────
+      - name: Certificates (testbed CA, Vault cert)
+        run: |
+          make -C ../dep-dlm-testbed certs
+          make onprem-vault-cert
+
+      # ── infra ───────────────────────────────────────────────────────
+      - name: Terraform init
+        run: |
+          make tf-init TF_ENV=onprem/infra
+          make tf-init TF_ENV=onprem/vault
+
+      - name: Fresh or existing deployment
+        run: |
+          if [[ -n "$($INFRA state list 2>/dev/null)" ]]; then
+            echo "::notice::onprem/infra exists: reconciling it (Terraform, Vault, Argo CD and E2E init are re-runnable)"
+          else
+            echo "Fresh deployment"
+            # A Vault state without infra belongs to a Vault that no longer exists.
+            gcloud storage rm -r "gs://${TF_STATE_BUCKET}/onprem/vault" 2>/dev/null || true
+          fi
+
+      - name: Infra plan & apply
+        run: |
+          make tf-plan TF_ENV=onprem/infra
+          make tf-apply TF_ENV=onprem/infra
+          echo "::add-mask::$($INFRA output -raw rucio_db_password)"
+          echo "::add-mask::$($INFRA output -raw fts_db_password)"
+
+      - name: Kubeconfig, Vault init, smoke test
+        run: |
+          make onprem-kubeconfig
+          # One long-lived tunnel for everything below; with-iap-tunnel.sh reuses it.
+          gcloud compute start-iap-tunnel "$($INFRA output -raw node_name)" 6443 \
+            --local-host-port=localhost:16443 --zone "$($INFRA output -raw zone)" \
+            --project "$GCP_PROJECT_ID" > /tmp/tunnel.log 2>&1 &
+          echo "TUNNEL_PID=$!" >> "$GITHUB_ENV"
+          for _ in $(seq 1 30); do (exec 3<>/dev/tcp/127.0.0.1/16443) 2>/dev/null && break; sleep 1; done
+          make onprem-vault-init
+          make onprem-smoke-test
+
+      - name: Vault contents
+        run: make onprem-vault-apply
+
+      # ── GitOps ──────────────────────────────────────────────────────
+      - name: Bootstrap Argo CD
+        env: { KUBECONFIG: "${{ github.workspace }}/dep-dlm-deployment/.kube/config-onprem" }
+        run: make bootstrap ENV="$ENV_PATH" ARGS=--install-argocd
+
+      - name: Wait for Argo CD, OPA policy and the Gateway
+        env: { KUBECONFIG: "${{ github.workspace }}/dep-dlm-deployment/.kube/config-onprem" }
+        run: |
+          APP="dep-dlm-${ENV_PATH//\//-}"
+          until kubectl -n argocd get app "$APP" >/dev/null 2>&1; do sleep 5; done
+          kubectl -n argocd wait app/"$APP" --for=jsonpath='{.status.sync.status}'=Synced --timeout=25m
+          kubectl -n argocd wait app/"$APP" --for=jsonpath='{.status.health.status}'=Healthy --timeout=15m
+          until kubectl -n "$NS" get job opa-init >/dev/null 2>&1; do sleep 5; done   # PostSync hook
+          kubectl -n "$NS" wait --for=condition=complete job/opa-init --timeout=5m
+          kubectl -n argocd wait app/traefik --for=jsonpath='{.status.health.status}'=Healthy --timeout=10m
+          kubectl -n "$NS" wait gateway --all --for=condition=Programmed --timeout=5m
+
+      - name: Rucio through the Gateway
+        run: |
+          IP=$($INFRA output -raw gateway_static_ip) HOST=$($INFRA output -raw rucio_public_hostname)
+          for i in $(seq 1 30); do
+            out=$(curl -sf -H "Host: ${HOST}" "http://${IP}/ping") && { echo "$out"; exit 0; }
+            echo "[$i] /ping not yet"; sleep 10
+          done
+          exit 1
+
+      # ── E2E ─────────────────────────────────────────────────────────
+      - name: Testbed E2E (init, transfers, deletion)
+        if: inputs.run_e2e
+        run: make onprem-e2e
+
+      - name: Diagnostics
+        if: failure()
+        env: { KUBECONFIG: "${{ github.workspace }}/dep-dlm-deployment/.kube/config-onprem" }
+        run: |
+          [[ -f "$KUBECONFIG" ]] || { echo "no kubeconfig yet"; exit 0; }
+          kubectl -n argocd get applications || true
+          kubectl -n "$NS" get pods,jobs,externalsecrets,gateway,httproute || true
+          kubectl -n traefik get pods || true
+          kubectl -n "$NS" logs deploy/rucio-daemons-conveyor-submitter --since=30m 2>/dev/null | grep -iE 'error|fail' | tail -30 || true
+          gcloud compute instances get-serial-port-output "$($INFRA output -raw node_name 2>/dev/null)" \
+            --zone "$($INFRA output -raw zone 2>/dev/null)" --project "$GCP_PROJECT_ID" 2>/dev/null \
+            | grep -E 'startup-script: +✓|failed' | tail -20 || true
+          cat /tmp/tunnel.log 2>/dev/null | tail -20 || true
+
+      # ── teardown ────────────────────────────────────────────────────
+      - name: Destroy
+        if: always() && inputs.destroy
+        run: |
+          [[ -n "${TUNNEL_PID:-}" ]] && kill "$TUNNEL_PID" 2>/dev/null || true
+          if [[ -n "$($INFRA state list 2>/dev/null)" ]]; then
+            make tf-destroy TF_ENV=onprem/infra
+          fi
+          gcloud storage rm -r "gs://${TF_STATE_BUCKET}/onprem/vault" 2>/dev/null || true
+
+      - name: Remove local credentials
+        if: always()
+        run: rm -rf .kube ../dep-dlm-testbed/.kube ../dep-dlm-testbed/certs ../dep-dlm-testbed/userpass-client.cfg
