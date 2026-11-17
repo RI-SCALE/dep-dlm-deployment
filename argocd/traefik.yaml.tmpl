@@ -16,7 +16,7 @@ spec:
       skipCrds: true            # Gateway API CRDs come with the cluster
       values: |
         deployment: { kind: DaemonSet }
-        service: { type: ClusterIP }
+        service: { enabled: false }       # hostPort 80 on the node, no Service needed
         ports:
           web: { hostPort: 80 }
           websecure: { expose: { default: false } }
