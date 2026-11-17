@@ -52,4 +52,11 @@ echo "==> Applying root for ${ENV_PATH}"
 envsubst '${ENV_PATH} ${REPO_URL} ${ENV_REVISION} ${ESO_NAME} ${ESO_NAMESPACE} ${ESO_GCP_SA}' \
   < "${REPO_ROOT}/argocd/root.yaml.tmpl" | kubectl apply -f -
 
+TRAEFIK_CHART_VERSION="${TRAEFIK_CHART_VERSION:-42.4.0}"
+if [[ "$(yq '.gateway.controller // ""' "$ENV_FILE")" == "traefik" ]]; then
+  echo "==> Applying Traefik (Gateway API controller)"
+  export TRAEFIK_CHART_VERSION
+  envsubst '${TRAEFIK_CHART_VERSION}' < "${REPO_ROOT}/argocd/traefik.yaml.tmpl" | kubectl apply -f -
+fi
+
 echo "==> Done. Watch: kubectl -n argocd get applications -w"

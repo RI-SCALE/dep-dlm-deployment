@@ -84,6 +84,14 @@ module "node" {
   }
 }
 
+resource "google_dns_record_set" "rucio" {
+  managed_zone = google_dns_managed_zone.internal.name
+  name         = "rucio.${local.dns_domain}."
+  type         = "A"
+  ttl          = 300
+  rrdatas      = [module.node.internal_ip] # Traefik hostPort 80 answers on the internal IP too
+}
+
 # --- Validation storage: the testbed's module, pinned by `make sync` ----------
 
 # Private zone of this VPC; the module adds the validation storage's A record.

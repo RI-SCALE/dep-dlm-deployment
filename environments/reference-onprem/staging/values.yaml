@@ -24,9 +24,17 @@ secrets:
 bootstrapDb:
   dbHost: 10.40.0.10                             # infra output rucio_database_host
 
-# No GKE Gateway on premise; Rucio/FTS exposure via an ingress is still open.
+# Gateway API with Traefik (hostPort 80 on the node); Rucio only for now,
+# FTS is reached in-cluster by the conveyor.
 gateway:
-  enabled: false
+  enabled: true
+  className: traefik
+  listenerPort: 8000            # Traefik's web entryPoint (hostPort 80)
+  routes:
+    - name: rucio-server
+      hostname: rucio.dep-dlm-onprem.example.com
+      service: rucio-server
+      port: 80
 
 # GMP PodMonitorings are GKE-only.
 observability:

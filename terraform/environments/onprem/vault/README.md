@@ -47,7 +47,6 @@ Vault contents (`modules/vault-config`), applied through an IAP tunnel by
 | <a name="input_eso_service_account_namespace"></a> [eso\_service\_account\_namespace](#input\_eso\_service\_account\_namespace) | Must match env.yaml eso.namespace | `string` | `"external-secrets"` | no |
 | <a name="input_oidc_expected_audience"></a> [oidc\_expected\_audience](#input\_oidc\_expected\_audience) | n/a | `string` | `"https://fts.example.org/"` | no |
 | <a name="input_oidc_expected_scope"></a> [oidc\_expected\_scope](#input\_oidc\_expected\_scope) | n/a | `string` | `"openid offline_access storage.read:/ storage.modify:/"` | no |
-| <a name="input_rucio_host"></a> [rucio\_host](#input\_rucio\_host) | n/a | `string` | `"http://rucio-server"` | no |
 | <a name="input_token_mode"></a> [token\_mode](#input\_token\_mode) | n/a | `string` | `"managed"` | no |
 | <a name="input_vault_addr"></a> [vault\_addr](#input\_vault\_addr) | Vault as reached through the IAP tunnel | `string` | `"https://localhost:18200"` | no |
 
