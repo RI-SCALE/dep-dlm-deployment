@@ -8,10 +8,10 @@
       `deploy/terraform/modules/secrets/templates/*.tftpl`
 
 ## Later
-- [ ] On-premise reference: `infra/reference-onprem/` (Terraform: GCE VM, kubeadm/RKE2,
+- [x] On-premise reference: `infra/reference-onprem/` (Terraform: GCE VM, kubeadm/RKE2,
       PostgreSQL + MySQL + Vault on the VM) and `environments/reference/onprem/`
       (`secretStore.provider: vault`, no Gateway)
-- [ ] On-premise reference CI (apply/smoke/destroy like the testbed's
+- [x] On-premise reference CI (apply/smoke/destroy like the testbed's
       _terraform-apply/-destroy): needs compute.networkAdmin,
       iap.tunnelResourceAccessor and compute.osAdminLogin for the CI SA in
       the testbed's bootstrap, VAULT_SAN merged in the testbed, and an
