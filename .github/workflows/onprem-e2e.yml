@@ -1,7 +1,8 @@
 name: On-premise reference E2E
 
-# Apply the on-premise reference (kubeadm node, validation storage), load
-# Vault, bootstrap Argo CD, run the testbed's E2E against it, destroy.
+# deploy: apply (or reconcile) the on-premise reference (kubeadm node,
+# validation storage), load Vault, bootstrap Argo CD, run the testbed's E2E;
+# optionally destroy at the end. destroy: tear down only.
 # Everything project-specific comes from inputs (defaults: the testbed's
 # staging project); only the OIDC client secrets are repository secrets.
 #
@@ -11,6 +12,12 @@ name: On-premise reference E2E
 on:
   workflow_dispatch:
     inputs:
+      action:
+        description: "deploy (apply or reconcile, then test) | destroy (tear down only)"
+        required: true
+        type: choice
+        options: [deploy, destroy]
+        default: deploy
       gcp_project_id:
         description: "GCP project (testbed bootstrap output project_ids.staging)"
         required: true
@@ -52,7 +59,7 @@ on:
         type: boolean
         default: true
       destroy:
-        description: "Destroy everything in the state at the end (also on failure), including a deployment this run reused"
+        description: "deploy only: destroy everything in the state at the end (also on failure), including a deployment this run reused"
         type: boolean
         default: false
 
@@ -77,6 +84,7 @@ env:
   NS: dep-dlm-staging
   INFRA: terraform -chdir=terraform/environments/onprem/infra
   CI: "true"
+  DEPLOY: ${{ inputs.action == 'deploy' }}
 
 defaults:
   run:
@@ -103,6 +111,7 @@ jobs:
           [[ -n "$OIDC_CLIENT_SECRET" ]] || { echo "::error::OIDC client secret for ${SCOPE_PROFILE} missing (repository secret)"; exit 1; }
 
       - name: Argo CD renders this ref
+        if: env.DEPLOY == 'true'
         run: |
           for k in baseRevision envRevision; do
             rev=$(yq ".${k}" "environments/${ENV_PATH}/env.yaml")
@@ -140,6 +149,7 @@ jobs:
           make tf-init TF_ENV=onprem/vault
 
       - name: Fresh or existing deployment
+        if: env.DEPLOY == 'true'
         run: |
           if [[ -n "$($INFRA state list 2>/dev/null)" ]]; then
             echo "::notice::onprem/infra exists: reconciling it (Terraform, Vault, Argo CD and E2E init are re-runnable)"
@@ -150,6 +160,7 @@ jobs:
           fi
 
       - name: Infra plan & apply
+        if: env.DEPLOY == 'true'
         run: |
           make tf-plan TF_ENV=onprem/infra
           make tf-apply TF_ENV=onprem/infra
@@ -157,26 +168,34 @@ jobs:
           echo "::add-mask::$($INFRA output -raw fts_db_password)"
 
       - name: Kubeconfig, Vault init, smoke test
+        if: env.DEPLOY == 'true'
         run: |
           make onprem-kubeconfig
           # One long-lived tunnel for everything below; with-iap-tunnel.sh reuses it.
-          gcloud compute start-iap-tunnel "$($INFRA output -raw node_name)" 6443 \
-            --local-host-port=localhost:16443 --zone "$($INFRA output -raw zone)" \
-            --project "$GCP_PROJECT_ID" > /tmp/tunnel.log 2>&1 &
+          # SSH over IAP rather than start-iap-tunnel: IAP TCP forwarding opens a
+          # websocket per TCP connection and E2E init opens hundreds, some of which
+          # fail (SSL RECORD_LAYER_FAILURE); SSH multiplexes them over one.
+          gcloud compute ssh "$($INFRA output -raw node_name)" --zone "$($INFRA output -raw zone)" \
+            --project "$GCP_PROJECT_ID" --tunnel-through-iap --quiet -- \
+            -N -L 16443:127.0.0.1:6443 -o ExitOnForwardFailure=yes \
+            -o ServerAliveInterval=30 -o StrictHostKeyChecking=no > /tmp/tunnel.log 2>&1 &
           echo "TUNNEL_PID=$!" >> "$GITHUB_ENV"
           for _ in $(seq 1 30); do (exec 3<>/dev/tcp/127.0.0.1/16443) 2>/dev/null && break; sleep 1; done
           make onprem-vault-init
           make onprem-smoke-test
 
       - name: Vault contents
+        if: env.DEPLOY == 'true'
         run: make onprem-vault-apply
 
       # ── GitOps ──────────────────────────────────────────────────────
       - name: Bootstrap Argo CD
+        if: env.DEPLOY == 'true'
         env: { KUBECONFIG: "${{ github.workspace }}/dep-dlm-deployment/.kube/config-onprem" }
         run: make bootstrap ENV="$ENV_PATH" ARGS=--install-argocd
 
       - name: Wait for Argo CD, OPA policy and the Gateway
+        if: env.DEPLOY == 'true'
         env: { KUBECONFIG: "${{ github.workspace }}/dep-dlm-deployment/.kube/config-onprem" }
         run: |
           APP="dep-dlm-${ENV_PATH//\//-}"
@@ -189,6 +208,7 @@ jobs:
           kubectl -n "$NS" wait gateway --all --for=condition=Programmed --timeout=5m
 
       - name: Rucio through the Gateway
+        if: env.DEPLOY == 'true'
         run: |
           IP=$($INFRA output -raw gateway_static_ip) HOST=$($INFRA output -raw rucio_public_hostname)
           for i in $(seq 1 30); do
@@ -199,7 +219,7 @@ jobs:
 
       # ── E2E ─────────────────────────────────────────────────────────
       - name: Pods pick up the current Vault config
-        if: inputs.run_e2e
+        if: env.DEPLOY == 'true' && inputs.run_e2e
         env: { KUBECONFIG: "${{ github.workspace }}/dep-dlm-deployment/.kube/config-onprem" }
         run: |
           kubectl -n "$NS" annotate externalsecret --all force-sync="$(date +%s)" --overwrite
@@ -209,11 +229,11 @@ jobs:
           for d in $DEPLOYS; do kubectl -n "$NS" rollout status "$d" --timeout=10m; done
 
       - name: Testbed E2E (init, transfers, deletion)
-        if: inputs.run_e2e
+        if: env.DEPLOY == 'true' && inputs.run_e2e
         run: make onprem-e2e
 
       - name: Diagnostics
-        if: failure()
+        if: failure() && env.DEPLOY == 'true'
         env: { KUBECONFIG: "${{ github.workspace }}/dep-dlm-deployment/.kube/config-onprem" }
         run: |
           [[ -f "$KUBECONFIG" ]] || { echo "no kubeconfig yet"; exit 0; }
@@ -228,7 +248,7 @@ jobs:
 
       # ── teardown ────────────────────────────────────────────────────
       - name: Destroy
-        if: always() && inputs.destroy
+        if: always() && (inputs.action == 'destroy' || inputs.destroy)
         run: |
           [[ -n "${TUNNEL_PID:-}" ]] && kill "$TUNNEL_PID" 2>/dev/null || true
           if [[ -n "$($INFRA state list 2>/dev/null)" ]]; then
