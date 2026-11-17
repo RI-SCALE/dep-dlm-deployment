@@ -6,7 +6,9 @@ ONPREM_NAMESPACE ?= dep-dlm-staging
 ONPREM_E2E = $(MAKE) -C $(TESTBED) GITOPS_ENV=staging TF_ENV=onprem \
 	TF_DIR=$(abspath terraform/environments/onprem/infra) K8S_NAMESPACE=$(ONPREM_NAMESPACE) \
 	SCOPE_PROFILE=$(SCOPE_PROFILE) TOKEN_MODE=$(TOKEN_MODE) DAEMON_MODE=daemons \
-	OIDC_GRANT_TYPE=client_credentials
+	OIDC_GRANT_TYPE=client_credentials OIDC_TOKEN_URL=$(OIDC_TOKEN_URL) \
+	OIDC_ISSUER=$(OIDC_ISSUER) OIDC_CLIENT_ID=$(OIDC_CLIENT_ID) \
+	OIDC_EXPECTED_SCOPE="$(OIDC_EXPECTED_SCOPE)"
 OIDC_IDENTITY_EMAIL ?= marvin.gajek@cern.ch
 
 VAULT_SAN := $(or $(VAULT_SAN),10.40.0.10)
@@ -41,6 +43,7 @@ ifeq ($(SCOPE_PROFILE),egi-dev)
   TEAPOT_AUDIENCES    ?= ["https://teapot1.example.org/","https://teapot2.example.org/"]
   TEAPOT_EXTRA_SUBS   ?= ["0f842730-ebfb-4de6-bcbb-3a44aab5a467@egi.eu","aa886829a0a894933008498cfe62264d899422f55b408560a259311776f0e519@egi.eu"]
   OIDC_IDENTITY_SUB ?= aa886829a0a894933008498cfe62264d899422f55b408560a259311776f0e519@egi.eu
+  OIDC_TOKEN_URL      ?= $(OIDC_ISSUER)/protocol/openid-connect/token
 else ifeq ($(SCOPE_PROFILE),ls-aai-dev)
   TOKEN_MODE          ?= managed
   OIDC_ISSUER_NAME    ?= lsaai-dev
@@ -50,6 +53,7 @@ else ifeq ($(SCOPE_PROFILE),ls-aai-dev)
   TEAPOT_AUDIENCES    ?= []
   TEAPOT_EXTRA_SUBS   ?= ["4ff05c0b-1d83-42b7-a00a-8bd162df4165","28f7bc3a2d32a4a722f6eb24f77f7fbe42eb6471@lifescience-ri.eu"]
   OIDC_IDENTITY_SUB ?= 28f7bc3a2d32a4a722f6eb24f77f7fbe42eb6471@lifescience-ri.eu
+  OIDC_TOKEN_URL      ?= https://login.aai.lifescience-ri.eu/oidc/token
 endif
 
 # Every TF_VAR_* any root uses; Terraform ignores those a root doesn't declare.
