@@ -29,7 +29,6 @@ TF_DOC_DIRS = terraform/environments/onprem/infra terraform/environments/onprem/
 
 # OIDC inputs (vault root, validation storage), per IdP profile (same values as the testbed's Makefile).
 SCOPE_PROFILE          ?= egi-dev
-TOKEN_MODE             ?= managed
 OIDC_CLIENT_SECRET     ?=
 BOOTSTRAP_USERPASS_PWD ?= secret
 USERPASS_PASSWORD      ?= secret

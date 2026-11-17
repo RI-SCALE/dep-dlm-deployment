@@ -198,6 +198,16 @@ jobs:
           exit 1
 
       # ── E2E ─────────────────────────────────────────────────────────
+      - name: Pods pick up the current Vault config
+        if: inputs.run_e2e
+        env: { KUBECONFIG: "${{ github.workspace }}/dep-dlm-deployment/.kube/config-onprem" }
+        run: |
+          kubectl -n "$NS" annotate externalsecret --all force-sync="$(date +%s)" --overwrite
+          sleep 20
+          DEPLOYS=$(kubectl -n "$NS" get deploy -o name | grep -v '^deployment.apps/opa$')
+          kubectl -n "$NS" rollout restart $DEPLOYS
+          for d in $DEPLOYS; do kubectl -n "$NS" rollout status "$d" --timeout=10m; done
+
       - name: Testbed E2E (init, transfers, deletion)
         if: inputs.run_e2e
         run: make onprem-e2e
