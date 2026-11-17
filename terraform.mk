@@ -30,30 +30,31 @@ TF_DOC_DIRS = terraform/environments/onprem/infra terraform/environments/onprem/
               terraform/modules/networking terraform/modules/onprem-node terraform/modules/vault-config
 
 # OIDC inputs (vault root, validation storage), per IdP profile (same values as the testbed's Makefile).
-SCOPE_PROFILE          ?= egi-dev
+# $(or …): set-but-empty variables (e.g. from a sourced env file) fall back to the defaults.
+SCOPE_PROFILE          := $(or $(SCOPE_PROFILE),egi-dev)
 OIDC_CLIENT_SECRET     ?=
 BOOTSTRAP_USERPASS_PWD ?= secret
 USERPASS_PASSWORD      ?= secret
 ifeq ($(SCOPE_PROFILE),egi-dev)
-  TOKEN_MODE          ?= unmanaged
-  OIDC_ISSUER_NAME    ?= egi-checkin-dev
-  OIDC_ISSUER         ?= https://aai-dev.egi.eu/auth/realms/egi
-  OIDC_CLIENT_ID      ?= 699e9e29-29e8-4220-8863-5306d8a7feb8
-  OIDC_EXPECTED_SCOPE ?= openid profile eduperson_entitlement offline_access read:/ write:/
+  TOKEN_MODE          := $(or $(TOKEN_MODE),unmanaged)
+  OIDC_ISSUER_NAME    := $(or $(OIDC_ISSUER_NAME),egi-checkin-dev)
+  OIDC_ISSUER         := $(or $(OIDC_ISSUER),https://aai-dev.egi.eu/auth/realms/egi)
+  OIDC_TOKEN_URL      := $(or $(OIDC_TOKEN_URL),$(OIDC_ISSUER)/protocol/openid-connect/token)
+  OIDC_CLIENT_ID      := $(or $(OIDC_CLIENT_ID),699e9e29-29e8-4220-8863-5306d8a7feb8)
+  OIDC_EXPECTED_SCOPE := $(or $(OIDC_EXPECTED_SCOPE),openid profile eduperson_entitlement offline_access read:/ write:/)
   TEAPOT_AUDIENCES    ?= ["https://teapot1.example.org/","https://teapot2.example.org/"]
   TEAPOT_EXTRA_SUBS   ?= ["0f842730-ebfb-4de6-bcbb-3a44aab5a467@egi.eu","aa886829a0a894933008498cfe62264d899422f55b408560a259311776f0e519@egi.eu"]
-  OIDC_IDENTITY_SUB ?= aa886829a0a894933008498cfe62264d899422f55b408560a259311776f0e519@egi.eu
-  OIDC_TOKEN_URL      ?= $(OIDC_ISSUER)/protocol/openid-connect/token
+  OIDC_IDENTITY_SUB   ?= aa886829a0a894933008498cfe62264d899422f55b408560a259311776f0e519@egi.eu
 else ifeq ($(SCOPE_PROFILE),ls-aai-dev)
-  TOKEN_MODE          ?= managed
-  OIDC_ISSUER_NAME    ?= lsaai-dev
-  OIDC_ISSUER         ?= https://login.aai.lifescience-ri.eu/oidc/
-  OIDC_CLIENT_ID      ?= 4ff05c0b-1d83-42b7-a00a-8bd162df4165
-  OIDC_EXPECTED_SCOPE ?= openid profile eduperson_entitlement offline_access
+  TOKEN_MODE          := $(or $(TOKEN_MODE),managed)
+  OIDC_ISSUER_NAME    := $(or $(OIDC_ISSUER_NAME),lsaai-dev)
+  OIDC_ISSUER         := $(or $(OIDC_ISSUER),https://login.aai.lifescience-ri.eu/oidc/)
+  OIDC_TOKEN_URL      := $(or $(OIDC_TOKEN_URL),https://login.aai.lifescience-ri.eu/oidc/token)
+  OIDC_CLIENT_ID      := $(or $(OIDC_CLIENT_ID),4ff05c0b-1d83-42b7-a00a-8bd162df4165)
+  OIDC_EXPECTED_SCOPE := $(or $(OIDC_EXPECTED_SCOPE),openid profile eduperson_entitlement offline_access)
   TEAPOT_AUDIENCES    ?= []
   TEAPOT_EXTRA_SUBS   ?= ["4ff05c0b-1d83-42b7-a00a-8bd162df4165","28f7bc3a2d32a4a722f6eb24f77f7fbe42eb6471@lifescience-ri.eu"]
-  OIDC_IDENTITY_SUB ?= 28f7bc3a2d32a4a722f6eb24f77f7fbe42eb6471@lifescience-ri.eu
-  OIDC_TOKEN_URL      ?= https://login.aai.lifescience-ri.eu/oidc/token
+  OIDC_IDENTITY_SUB   ?= 28f7bc3a2d32a4a722f6eb24f77f7fbe42eb6471@lifescience-ri.eu
 endif
 
 # Every TF_VAR_* any root uses; Terraform ignores those a root doesn't declare.
