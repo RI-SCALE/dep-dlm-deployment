@@ -26,6 +26,8 @@ spec:
           kubernetesGateway: { enabled: true }
         gateway: { enabled: false }     # the dep-dlm chart renders the Gateway
         gatewayClass: { enabled: true, name: traefik }
+        updateStrategy:
+          rollingUpdate: { maxUnavailable: 1, maxSurge: 0 }   # hostPort: old pod must go first
   destination: { server: https://kubernetes.default.svc, namespace: traefik }
   syncPolicy:
     automated: { prune: true, selfHeal: true }

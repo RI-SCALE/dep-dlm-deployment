@@ -127,5 +127,5 @@ variable "labels" {
 variable "gateway_api_version" {
   description = "Gateway API release whose standard CRDs are installed (Traefik implements them)"
   type        = string
-  default     = "v1.4.0"
+  default     = "v1.5.1"   # Traefik v3.7 needs TLSRoute v1 (Standard since v1.5)
 }
