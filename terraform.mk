@@ -34,6 +34,7 @@ OIDC_CLIENT_SECRET     ?=
 BOOTSTRAP_USERPASS_PWD ?= secret
 USERPASS_PASSWORD      ?= secret
 ifeq ($(SCOPE_PROFILE),egi-dev)
+  TOKEN_MODE          ?= unmanaged
   OIDC_ISSUER_NAME    ?= egi-checkin-dev
   OIDC_ISSUER         ?= https://aai-dev.egi.eu/auth/realms/egi
   OIDC_CLIENT_ID      ?= 699e9e29-29e8-4220-8863-5306d8a7feb8
@@ -42,6 +43,7 @@ ifeq ($(SCOPE_PROFILE),egi-dev)
   TEAPOT_EXTRA_SUBS   ?= ["0f842730-ebfb-4de6-bcbb-3a44aab5a467@egi.eu","aa886829a0a894933008498cfe62264d899422f55b408560a259311776f0e519@egi.eu"]
   OIDC_IDENTITY_SUB ?= aa886829a0a894933008498cfe62264d899422f55b408560a259311776f0e519@egi.eu
 else ifeq ($(SCOPE_PROFILE),ls-aai-dev)
+  TOKEN_MODE          ?= managed
   OIDC_ISSUER_NAME    ?= lsaai-dev
   OIDC_ISSUER         ?= https://login.aai.lifescience-ri.eu/oidc/
   OIDC_CLIENT_ID      ?= 4ff05c0b-1d83-42b7-a00a-8bd162df4165
