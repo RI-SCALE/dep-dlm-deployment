@@ -29,8 +29,10 @@ for cmd in kubectl yq envsubst; do
 done
 
 echo "==> Target cluster: $(kubectl config current-context)"
-read -r -p "Bootstrap ${ENV_PATH} here? [y/N] " ok
-[[ "$ok" == [yY] ]] || exit 1
+if [[ -t 0 && -z "${CI:-}" ]]; then
+  read -r -p "Bootstrap ${ENV_PATH} here? [y/N] " ok
+  [[ "$ok" == [yY] ]] || exit 1
+fi
 
 if [[ "$INSTALL_ARGOCD" -eq 1 ]]; then
   echo "==> Installing Argo CD ${ARGOCD_VERSION}"

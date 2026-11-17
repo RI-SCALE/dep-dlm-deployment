@@ -76,6 +76,7 @@ env:
   ENV_PATH: reference-onprem/staging
   NS: dep-dlm-staging
   INFRA: terraform -chdir=terraform/environments/onprem/infra
+  CI: "true"
 
 defaults:
   run:
