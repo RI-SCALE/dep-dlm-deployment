@@ -55,6 +55,7 @@ No modules.
 | <a name="input_zone"></a> [zone](#input\_zone) | GCP zone for the VM | `string` | n/a | yes |
 | <a name="input_disk_size_gb"></a> [disk\_size\_gb](#input\_disk\_size\_gb) | n/a | `number` | `100` | no |
 | <a name="input_flannel_version"></a> [flannel\_version](#input\_flannel\_version) | Flannel release whose kube-flannel.yml is applied | `string` | `"v0.26.1"` | no |
+| <a name="input_gateway_api_version"></a> [gateway\_api\_version](#input\_gateway\_api\_version) | Gateway API release whose standard CRDs are installed (Traefik implements them) | `string` | `"v1.5.1"` | no |
 | <a name="input_image"></a> [image](#input\_image) | Boot image. Ubuntu LTS: a common on-premise base, unlike Container-Optimized OS. | `string` | `"ubuntu-os-cloud/ubuntu-2404-lts-amd64"` | no |
 | <a name="input_internal_ip"></a> [internal\_ip](#input\_internal\_ip) | Fixed internal IP of the node. Must be inside subnet\_cidr and in VAULT\_SAN of the Vault certificate. | `string` | `"10.40.0.10"` | no |
 | <a name="input_kubernetes_minor"></a> [kubernetes\_minor](#input\_kubernetes\_minor) | Kubernetes minor version for the pkgs.k8s.io apt repository (e.g. 1.36) | `string` | `"1.36"` | no |

@@ -31,6 +31,7 @@ access: [terraform/README.md](../../../README.md).
 | Name | Type |
 | ---- | ---- |
 | [google_dns_managed_zone.internal](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/dns_managed_zone) | resource |
+| [google_dns_record_set.rucio](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/dns_record_set) | resource |
 | [google_secret_manager_secret.valstorage_certs](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/secret_manager_secret) | resource |
 | [google_secret_manager_secret_version.valstorage_certs](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/secret_manager_secret_version) | resource |
 
@@ -45,7 +46,7 @@ access: [terraform/README.md](../../../README.md).
 | <a name="input_region"></a> [region](#input\_region) | GCP region (testbed bootstrap output regions.staging) | `string` | n/a | yes |
 | <a name="input_environment"></a> [environment](#input\_environment) | Environment name, used in resource names | `string` | `"onprem"` | no |
 | <a name="input_node_internal_ip"></a> [node\_internal\_ip](#input\_node\_internal\_ip) | Fixed node IP: Vault certificate SAN (VAULT\_SAN), database host and Vault address in the GitOps values | `string` | `"10.40.0.10"` | no |
-| <a name="input_public_ports"></a> [public\_ports](#input\_public\_ports) | TCP ports opened to the internet on the node (e.g. ["80", "443"] once an ingress controller exposes Rucio/FTS) | `list(string)` | `[]` | no |
+| <a name="input_public_ports"></a> [public\_ports](#input\_public\_ports) | TCP ports opened to the internet on the node (80: the Gateway in front of Rucio) | `list(string)` | <pre>[<br/>  "80"<br/>]</pre> | no |
 | <a name="input_subnet_cidr"></a> [subnet\_cidr](#input\_subnet\_cidr) | n/a | `string` | `"10.40.0.0/24"` | no |
 | <a name="input_teapot_audiences"></a> [teapot\_audiences](#input\_teapot\_audiences) | Audiences Teapot restricts the issuer's tokens to (LS AAI only) | `list(string)` | `[]` | no |
 | <a name="input_teapot_extra_subs"></a> [teapot\_extra\_subs](#input\_teapot\_extra\_subs) | Extra subs mapped to Teapot's local user (client\_credentials sub, human subs) | `list(string)` | `[]` | no |
@@ -56,14 +57,25 @@ access: [terraform/README.md](../../../README.md).
 | Name | Description |
 | ---- | ----------- |
 | <a name="output_fts_database_host"></a> [fts\_database\_host](#output\_fts\_database\_host) | n/a |
+| <a name="output_fts_database_private_ip"></a> [fts\_database\_private\_ip](#output\_fts\_database\_private\_ip) | n/a |
 | <a name="output_fts_db_password"></a> [fts\_db\_password](#output\_fts\_db\_password) | n/a |
+| <a name="output_fts_public_hostname"></a> [fts\_public\_hostname](#output\_fts\_public\_hostname) | n/a |
+| <a name="output_gateway_static_ip"></a> [gateway\_static\_ip](#output\_gateway\_static\_ip) | Node's external IP: the Gateway (Traefik hostPort 80) serves Rucio there |
 | <a name="output_node_external_ip"></a> [node\_external\_ip](#output\_node\_external\_ip) | n/a |
 | <a name="output_node_internal_ip"></a> [node\_internal\_ip](#output\_node\_internal\_ip) | n/a |
 | <a name="output_node_name"></a> [node\_name](#output\_node\_name) | n/a |
 | <a name="output_project_id"></a> [project\_id](#output\_project\_id) | n/a |
 | <a name="output_region"></a> [region](#output\_region) | n/a |
 | <a name="output_rucio_database_host"></a> [rucio\_database\_host](#output\_rucio\_database\_host) | bootstrapDb.dbHost |
+| <a name="output_rucio_database_private_ip"></a> [rucio\_database\_private\_ip](#output\_rucio\_database\_private\_ip) | n/a |
 | <a name="output_rucio_db_password"></a> [rucio\_db\_password](#output\_rucio\_db\_password) | n/a |
+| <a name="output_rucio_public_hostname"></a> [rucio\_public\_hostname](#output\_rucio\_public\_hostname) | n/a |
+| <a name="output_validation_storage_hostname"></a> [validation\_storage\_hostname](#output\_validation\_storage\_hostname) | n/a |
+| <a name="output_validation_storage_ip"></a> [validation\_storage\_ip](#output\_validation\_storage\_ip) | n/a |
+| <a name="output_validation_storage_teapot1_pfn_root"></a> [validation\_storage\_teapot1\_pfn\_root](#output\_validation\_storage\_teapot1\_pfn\_root) | n/a |
+| <a name="output_validation_storage_teapot2_pfn_root"></a> [validation\_storage\_teapot2\_pfn\_root](#output\_validation\_storage\_teapot2\_pfn\_root) | n/a |
+| <a name="output_validation_storage_xrd3_pfn_root"></a> [validation\_storage\_xrd3\_pfn\_root](#output\_validation\_storage\_xrd3\_pfn\_root) | n/a |
+| <a name="output_validation_storage_xrd4_pfn_root"></a> [validation\_storage\_xrd4\_pfn\_root](#output\_validation\_storage\_xrd4\_pfn\_root) | n/a |
 | <a name="output_valstorage_hostname"></a> [valstorage\_hostname](#output\_valstorage\_hostname) | n/a |
 | <a name="output_valstorage_instance_name"></a> [valstorage\_instance\_name](#output\_valstorage\_instance\_name) | n/a |
 | <a name="output_valstorage_ip"></a> [valstorage\_ip](#output\_valstorage\_ip) | n/a |

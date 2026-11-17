@@ -166,6 +166,7 @@ resource "google_compute_instance" "this" {
 
   metadata = {
     startup-script = templatefile("${path.module}/templates/startup-script.sh.tftpl", {
+      gateway_api_version  = var.gateway_api_version
       node_secret_id       = google_secret_manager_secret.node.id
       vault_init_secret_id = google_secret_manager_secret.vault_init.id
       kubernetes_minor     = var.kubernetes_minor

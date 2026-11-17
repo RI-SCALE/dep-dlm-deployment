@@ -1,0 +1,34 @@
+# Gateway API controller for clusters without a cloud load balancer
+# (on-premise reference): Traefik on the node's port 80.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: traefik
+  namespace: argocd
+  finalizers: [ resources-finalizer.argocd.argoproj.io ]
+spec:
+  project: default
+  source:
+    repoURL: https://traefik.github.io/charts
+    chart: traefik
+    targetRevision: ${TRAEFIK_CHART_VERSION}
+    helm:
+      skipCrds: true            # Gateway API CRDs come with the cluster
+      values: |
+        deployment: { kind: DaemonSet }
+        service: { enabled: false }       # hostPort 80 on the node, no Service needed
+        ports:
+          web: { hostPort: 80 }
+          websecure: { expose: { default: false } }
+        providers:
+          kubernetesCRD: { enabled: false }
+          kubernetesIngress: { enabled: false }
+          kubernetesGateway: { enabled: true }
+        gateway: { enabled: false }     # the dep-dlm chart renders the Gateway
+        gatewayClass: { enabled: true, name: traefik }
+        updateStrategy:
+          rollingUpdate: { maxUnavailable: 1, maxSurge: 0 }   # hostPort: old pod must go first
+  destination: { server: https://kubernetes.default.svc, namespace: traefik }
+  syncPolicy:
+    automated: { prune: true, selfHeal: true }
+    syncOptions: [ CreateNamespace=true, ServerSideApply=true ]

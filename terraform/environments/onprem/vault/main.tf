@@ -48,7 +48,7 @@ module "vault_config" {
   fts_db_password   = local.infra.fts_db_password
   storage_ip        = local.infra.valstorage_ip == "" ? null : local.infra.valstorage_ip
 
-  rucio_host             = var.rucio_host
+  rucio_host             = "http://${local.infra.rucio_public_hostname}"
   bootstrap_userpass_pwd = var.bootstrap_userpass_pwd
   userpass_password      = var.userpass_password
   oidc_issuer            = var.oidc_issuer

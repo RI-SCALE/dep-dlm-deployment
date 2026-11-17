@@ -97,7 +97,7 @@ variable "certs_dir" {
 
   validation {
     condition     = fileexists("${var.certs_dir}/vaultcert.pem") && fileexists("${var.certs_dir}/vaultkey.pem") && fileexists("${var.certs_dir}/rucio_ca.pem")
-    error_message = "certs_dir must contain vaultcert.pem, vaultkey.pem and rucio_ca.pem: run `VAULT_SAN=<internal_ip> make certs` in the testbed first."
+    error_message = "certs_dir must contain vaultcert.pem, vaultkey.pem and rucio_ca.pem: run make onprem-vault-cert first."
   }
 }
 
@@ -122,4 +122,10 @@ variable "terraform_ci_sa_email" {
 variable "labels" {
   type    = map(string)
   default = {}
+}
+
+variable "gateway_api_version" {
+  description = "Gateway API release whose standard CRDs are installed (Traefik implements them)"
+  type        = string
+  default     = "v1.5.1" # Traefik v3.7 needs TLSRoute v1 (Standard since v1.5)
 }

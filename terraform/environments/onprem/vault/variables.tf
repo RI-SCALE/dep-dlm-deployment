@@ -36,11 +36,6 @@ variable "eso_service_account_namespace" {
   default     = "external-secrets"
 }
 
-variable "rucio_host" {
-  type    = string
-  default = "http://rucio-server"
-}
-
 variable "bootstrap_userpass_pwd" {
   type      = string
   sensitive = true

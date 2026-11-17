@@ -31,9 +31,9 @@ variable "certs_dir" {
 }
 
 variable "public_ports" {
-  description = "TCP ports opened to the internet on the node (e.g. [\"80\", \"443\"] once an ingress controller exposes Rucio/FTS)"
+  description = "TCP ports opened to the internet on the node (80: the Gateway in front of Rucio)"
   type        = list(string)
-  default     = []
+  default     = ["80"]
 }
 
 # --- Validation storage (testbed modules/validation-storage) ----------------

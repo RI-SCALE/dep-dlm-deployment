@@ -154,6 +154,7 @@ YAML
   kubectl apply -f "https://raw.githubusercontent.com/rancher/local-path-provisioner/${local_path_version}/deploy/local-path-storage.yaml"
   kubectl patch storageclass local-path \
     -p '{"metadata":{"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
+  kubectl apply --server-side -f "https://github.com/kubernetes-sigs/gateway-api/releases/download/${gateway_api_version}/standard-install.yaml"
   mark kubeadm
 fi
 
