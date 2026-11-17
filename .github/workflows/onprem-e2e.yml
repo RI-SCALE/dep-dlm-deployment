@@ -1,67 +1,62 @@
-name: On-premise reference E2E
+name: On-premise reference
 
-# deploy: apply (or reconcile) the on-premise reference (kubeadm node,
-# validation storage), load Vault, bootstrap Argo CD, run the testbed's E2E;
-# optionally destroy at the end. destroy: tear down only.
-# Everything project-specific comes from inputs (defaults: the testbed's
-# staging project); only the OIDC client secrets are repository secrets.
-#
+# Jobs, each optional and re-runnable against an existing deployment:
+#   terraform  infra apply (or reconcile), Vault init, infra smoke test, Vault contents
+#   gitops     Argo CD bootstrap, wait for sync/OPA/Gateway, Rucio /ping
+#   e2e        pods reload the Vault config, the testbed's E2E
+#   destroy    tear everything down (alone: destroy only)
+# Project-specific values are inputs (defaults: the testbed's staging
+# project); only the OIDC client secrets are repository secrets.
 # Argo CD renders env.yaml's baseRevision/envRevision from git, so they must
-# name the ref this workflow runs on (checked below).
+# name the ref this workflow runs on (checked in gitops).
 
 on:
   workflow_dispatch:
     inputs:
-      action:
-        description: "deploy (apply or reconcile, then test) | destroy (tear down only)"
-        required: true
-        type: choice
-        options: [deploy, destroy]
-        default: deploy
-      gcp_project_id:
-        description: "GCP project (testbed bootstrap output project_ids.staging)"
-        required: true
-        default: dep-dlm-staging-e52e0d90
-      gcp_region:
-        description: "GCP region"
-        required: true
-        default: europe-west3
-      tf_state_bucket:
-        description: "Terraform state bucket (prefixes onprem/infra, onprem/vault)"
-        required: true
-        default: dep-dlm-tfstate-staging-dep-dlm-staging-e52e0d90
-      workload_identity_provider:
-        description: "WIF provider (testbed bootstrap output workload_identity_providers.staging)"
-        required: true
-        default: projects/738996403212/locations/global/workloadIdentityPools/github-actions-pool/providers/github-actions-provider
-      service_account:
-        description: "Terraform CI service account"
-        required: true
-        default: dep-dlm-terraform-ci@dep-dlm-staging-e52e0d90.iam.gserviceaccount.com
+      run_terraform:
+        description: "terraform: infra apply/reconcile, Vault, infra smoke test"
+        type: boolean
+        default: true
+      run_gitops:
+        description: "gitops: Argo CD bootstrap, sync, Gateway /ping (needs applied infra)"
+        type: boolean
+        default: true
+      run_e2e:
+        description: "e2e: the testbed's E2E (needs a healthy GitOps deployment)"
+        type: boolean
+        default: true
+      run_destroy:
+        description: "destroy: tear down at the end, also on failure (alone: destroy only)"
+        type: boolean
+        default: false
       scope_profile:
         description: "OIDC profile"
-        required: true
         type: choice
         options: [egi-dev, ls-aai-dev]
         default: egi-dev
       token_mode:
         description: "Token mode (profile-default: unmanaged for egi-dev, managed for ls-aai-dev)"
-        required: true
         type: choice
         options: [profile-default, managed, unmanaged]
         default: profile-default
       testbed_ref:
         description: "dep-dlm-testbed ref (certs, E2E suite)"
-        required: true
         default: main
-      run_e2e:
-        description: "Run the testbed's E2E (otherwise stop after the /ping check)"
-        type: boolean
-        default: true
-      destroy:
-        description: "deploy only: destroy everything in the state at the end (also on failure), including a deployment this run reused"
-        type: boolean
-        default: false
+      gcp_project_id:
+        description: "GCP project (testbed bootstrap output project_ids.staging)"
+        default: dep-dlm-staging-e52e0d90
+      gcp_region:
+        description: "GCP region"
+        default: europe-west3
+      tf_state_bucket:
+        description: "Terraform state bucket (prefixes onprem/infra, onprem/vault)"
+        default: dep-dlm-tfstate-staging-dep-dlm-staging-e52e0d90
+      workload_identity_provider:
+        description: "WIF provider (testbed bootstrap output workload_identity_providers.staging)"
+        default: projects/738996403212/locations/global/workloadIdentityPools/github-actions-pool/providers/github-actions-provider
+      service_account:
+        description: "Terraform CI service account"
+        default: dep-dlm-terraform-ci@dep-dlm-staging-e52e0d90.iam.gserviceaccount.com
 
 concurrency:
   group: onprem-${{ inputs.gcp_project_id }}   # one state, one run at a time
@@ -74,17 +69,18 @@ permissions:
 env:
   TF_IN_AUTOMATION: "true"
   TF_INPUT: "false"
+  CI: "true"
+  AUTO_APPROVE: "1"
   GCP_PROJECT_ID: ${{ inputs.gcp_project_id }}
   GCP_REGION: ${{ inputs.gcp_region }}
   TF_STATE_BUCKET: ${{ inputs.tf_state_bucket }}
   SCOPE_PROFILE: ${{ inputs.scope_profile }}
+  TOKEN_MODE: ${{ inputs.token_mode != 'profile-default' && inputs.token_mode || '' }}   # empty: profile default
   OIDC_CLIENT_SECRET: ${{ inputs.scope_profile == 'ls-aai-dev' && secrets.LS_AAI_DEV_OIDC_CLIENT_SECRET || secrets.EGI_DEV_OIDC_CLIENT_SECRET }}
-  AUTO_APPROVE: "1"
   ENV_PATH: reference-onprem/staging
   NS: dep-dlm-staging
   INFRA: terraform -chdir=terraform/environments/onprem/infra
-  CI: "true"
-  DEPLOY: ${{ inputs.action == 'deploy' }}
+  KUBECONFIG: ${{ github.workspace }}/dep-dlm-deployment/.kube/config-onprem
 
 defaults:
   run:
@@ -92,67 +88,46 @@ defaults:
     working-directory: dep-dlm-deployment   # ../dep-dlm-testbed as in the devcontainer
 
 jobs:
-  onprem-e2e:
+  terraform:
+    if: inputs.run_terraform
     runs-on: ubuntu-24.04
-    timeout-minutes: 150
+    timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v6
+      - &checkout-deployment
+        uses: actions/checkout@v6
         with: { path: dep-dlm-deployment }
-
-      - uses: actions/checkout@v6
-        with:
-          repository: RI-SCALE/dep-dlm-testbed
-          ref: ${{ inputs.testbed_ref }}
-          path: dep-dlm-testbed
-
-      - name: Token mode
-        run: |
-          [[ "${{ inputs.token_mode }}" == profile-default ]] || echo "TOKEN_MODE=${{ inputs.token_mode }}" >> "$GITHUB_ENV"
-          [[ -n "$OIDC_CLIENT_SECRET" ]] || { echo "::error::OIDC client secret for ${SCOPE_PROFILE} missing (repository secret)"; exit 1; }
-
-      - name: Argo CD renders this ref
-        if: env.DEPLOY == 'true'
-        run: |
-          for k in baseRevision envRevision; do
-            rev=$(yq ".${k}" "environments/${ENV_PATH}/env.yaml")
-            [[ "$rev" == "$GITHUB_REF_NAME" ]] || {
-              echo "::error::environments/${ENV_PATH}/env.yaml ${k}=${rev}, but this run is on ${GITHUB_REF_NAME}"; exit 1; }
-          done
-
-      - uses: google-github-actions/auth@v2
+      - &checkout-testbed
+        uses: actions/checkout@v6
+        with: { repository: RI-SCALE/dep-dlm-testbed, ref: "${{ inputs.testbed_ref }}", path: dep-dlm-testbed }
+      - &auth
+        uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: ${{ inputs.workload_identity_provider }}
           service_account: ${{ inputs.service_account }}
-
-      - uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: "1.15.8"
-          terraform_wrapper: false   # keep `output -raw` clean
-
-      - uses: google-github-actions/setup-gcloud@v2
-
-      - name: Tools
+      - &setup-terraform
+        uses: hashicorp/setup-terraform@v3
+        with: { terraform_version: "1.15.8", terraform_wrapper: false }   # keep `output -raw` clean
+      - &setup-gcloud
+        uses: google-github-actions/setup-gcloud@v2
+      - &tools
+        name: Tools
         run: |
+          [[ -n "$OIDC_CLIENT_SECRET" ]] || { echo "::error::OIDC client secret for ${SCOPE_PROFILE} missing (repository secret)"; exit 1; }
           pip install --break-system-packages pytest requests numpy
           ssh-keygen -t rsa -N '' -q -f ~/.ssh/google_compute_engine   # gcloud compute ssh (OS Login)
-
-      # ── certificates ────────────────────────────────────────────────
-      - name: Certificates (testbed CA, Vault cert)
+      - &certs
+        name: Certificates (testbed CA, Vault cert)
         run: |
           make -C ../dep-dlm-testbed certs
           make onprem-vault-cert
-
-      # ── infra ───────────────────────────────────────────────────────
-      - name: Terraform init
-        run: |
-          make tf-init TF_ENV=onprem/infra
-          make tf-init TF_ENV=onprem/vault
+      - &init-infra
+        name: Terraform init (infra)
+        run: make tf-init TF_ENV=onprem/infra
 
       - name: Fresh or existing deployment
-        if: env.DEPLOY == 'true'
         run: |
           if [[ -n "$($INFRA state list 2>/dev/null)" ]]; then
-            echo "::notice::onprem/infra exists: reconciling it (Terraform, Vault, Argo CD and E2E init are re-runnable)"
+            echo "::notice::onprem/infra exists: reconciling it"
           else
             echo "Fresh deployment"
             # A Vault state without infra belongs to a Vault that no longer exists.
@@ -160,43 +135,70 @@ jobs:
           fi
 
       - name: Infra plan & apply
-        if: env.DEPLOY == 'true'
         run: |
           make tf-plan TF_ENV=onprem/infra
           make tf-apply TF_ENV=onprem/infra
+
+      - &mask
+        name: Mask database passwords
+        run: |
           echo "::add-mask::$($INFRA output -raw rucio_db_password)"
           echo "::add-mask::$($INFRA output -raw fts_db_password)"
-
-      - name: Kubeconfig, Vault init, smoke test
-        if: env.DEPLOY == 'true'
+      - &tunnel
+        name: Kubeconfig and kube-apiserver tunnel
         run: |
-          make onprem-kubeconfig
-          # One long-lived tunnel for everything below; with-iap-tunnel.sh reuses it.
+          make onprem-kubeconfig   # waits for the startup script (about 4 min on a fresh node)
           # SSH over IAP rather than start-iap-tunnel: IAP TCP forwarding opens a
           # websocket per TCP connection and E2E init opens hundreds, some of which
           # fail (SSL RECORD_LAYER_FAILURE); SSH multiplexes them over one.
+          # with-iap-tunnel.sh reuses it.
           gcloud compute ssh "$($INFRA output -raw node_name)" --zone "$($INFRA output -raw zone)" \
             --project "$GCP_PROJECT_ID" --tunnel-through-iap --quiet -- \
             -N -L 16443:127.0.0.1:6443 -o ExitOnForwardFailure=yes \
             -o ServerAliveInterval=30 -o StrictHostKeyChecking=no > /tmp/tunnel.log 2>&1 &
-          echo "TUNNEL_PID=$!" >> "$GITHUB_ENV"
-          for _ in $(seq 1 30); do (exec 3<>/dev/tcp/127.0.0.1/16443) 2>/dev/null && break; sleep 1; done
+          for _ in $(seq 1 30); do (exec 3<>/dev/tcp/127.0.0.1/16443) 2>/dev/null && exit 0; sleep 1; done
+          echo "::error::kube-apiserver tunnel not up"; cat /tmp/tunnel.log; exit 1
+
+      - name: Vault init & infra smoke test
+        run: |
           make onprem-vault-init
           make onprem-smoke-test
 
       - name: Vault contents
-        if: env.DEPLOY == 'true'
-        run: make onprem-vault-apply
+        run: |
+          make tf-init TF_ENV=onprem/vault
+          make onprem-vault-apply
 
-      # ── GitOps ──────────────────────────────────────────────────────
+      - &cleanup
+        name: Remove local credentials
+        if: always()
+        run: rm -rf .kube ../dep-dlm-testbed/.kube ../dep-dlm-testbed/certs ../dep-dlm-testbed/userpass-client.cfg
+
+  gitops:
+    needs: terraform
+    if: always() && inputs.run_gitops && contains(fromJSON('["success","skipped"]'), needs.terraform.result)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - *checkout-deployment
+      - name: Argo CD renders this ref
+        run: |
+          for k in baseRevision envRevision; do
+            rev=$(yq ".${k}" "environments/${ENV_PATH}/env.yaml")
+            [[ "$rev" == "$GITHUB_REF_NAME" ]] || {
+              echo "::error::environments/${ENV_PATH}/env.yaml ${k}=${rev}, but this run is on ${GITHUB_REF_NAME}"; exit 1; }
+          done
+      - *auth
+      - *setup-terraform
+      - *setup-gcloud
+      - *tools
+      - *init-infra
+      - *tunnel
+
       - name: Bootstrap Argo CD
-        if: env.DEPLOY == 'true'
-        env: { KUBECONFIG: "${{ github.workspace }}/dep-dlm-deployment/.kube/config-onprem" }
         run: make bootstrap ENV="$ENV_PATH" ARGS=--install-argocd
 
       - name: Wait for Argo CD, OPA policy and the Gateway
-        if: env.DEPLOY == 'true'
-        env: { KUBECONFIG: "${{ github.workspace }}/dep-dlm-deployment/.kube/config-onprem" }
         run: |
           APP="dep-dlm-${ENV_PATH//\//-}"
           until kubectl -n argocd get app "$APP" >/dev/null 2>&1; do sleep 5; done
@@ -208,7 +210,6 @@ jobs:
           kubectl -n "$NS" wait gateway --all --for=condition=Programmed --timeout=5m
 
       - name: Rucio through the Gateway
-        if: env.DEPLOY == 'true'
         run: |
           IP=$($INFRA output -raw gateway_static_ip) HOST=$($INFRA output -raw rucio_public_hostname)
           for i in $(seq 1 30); do
@@ -217,10 +218,40 @@ jobs:
           done
           exit 1
 
-      # ── E2E ─────────────────────────────────────────────────────────
+      - &diagnostics
+        name: Diagnostics
+        if: failure()
+        run: |
+          [[ -f "$KUBECONFIG" ]] || { echo "no kubeconfig"; exit 0; }
+          kubectl -n argocd get applications || true
+          kubectl -n "$NS" get pods,jobs,externalsecrets,gateway,httproute || true
+          kubectl -n traefik get pods || true
+          kubectl -n "$NS" logs deploy/rucio-daemons-conveyor-submitter --since=30m 2>/dev/null | grep -iE 'error|fail' | tail -30 || true
+          tail -20 /tmp/tunnel.log 2>/dev/null || true
+      - *cleanup
+
+  e2e:
+    needs: [terraform, gitops]
+    if: >-
+      always() && inputs.run_e2e &&
+      contains(fromJSON('["success","skipped"]'), needs.terraform.result) &&
+      contains(fromJSON('["success","skipped"]'), needs.gitops.result)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - *checkout-deployment
+      - *checkout-testbed
+      - *auth
+      - *setup-terraform
+      - *setup-gcloud
+      - *tools
+      - name: Certificates (testbed CA; mounted by the E2E container)
+        run: make -C ../dep-dlm-testbed certs
+      - *init-infra
+      - *mask
+      - *tunnel
+
       - name: Pods pick up the current Vault config
-        if: env.DEPLOY == 'true' && inputs.run_e2e
-        env: { KUBECONFIG: "${{ github.workspace }}/dep-dlm-deployment/.kube/config-onprem" }
         run: |
           kubectl -n "$NS" annotate externalsecret --all force-sync="$(date +%s)" --overwrite
           sleep 20
@@ -229,33 +260,31 @@ jobs:
           for d in $DEPLOYS; do kubectl -n "$NS" rollout status "$d" --timeout=10m; done
 
       - name: Testbed E2E (init, transfers, deletion)
-        if: env.DEPLOY == 'true' && inputs.run_e2e
         run: make onprem-e2e
 
-      - name: Diagnostics
-        if: failure() && env.DEPLOY == 'true'
-        env: { KUBECONFIG: "${{ github.workspace }}/dep-dlm-deployment/.kube/config-onprem" }
-        run: |
-          [[ -f "$KUBECONFIG" ]] || { echo "no kubeconfig yet"; exit 0; }
-          kubectl -n argocd get applications || true
-          kubectl -n "$NS" get pods,jobs,externalsecrets,gateway,httproute || true
-          kubectl -n traefik get pods || true
-          kubectl -n "$NS" logs deploy/rucio-daemons-conveyor-submitter --since=30m 2>/dev/null | grep -iE 'error|fail' | tail -30 || true
-          gcloud compute instances get-serial-port-output "$($INFRA output -raw node_name 2>/dev/null)" \
-            --zone "$($INFRA output -raw zone 2>/dev/null)" --project "$GCP_PROJECT_ID" 2>/dev/null \
-            | grep -E 'startup-script: +✓|failed' | tail -20 || true
-          cat /tmp/tunnel.log 2>/dev/null | tail -20 || true
+      - *diagnostics
+      - *cleanup
 
-      # ── teardown ────────────────────────────────────────────────────
+  destroy:
+    needs: [terraform, gitops, e2e]
+    if: always() && inputs.run_destroy
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - *checkout-deployment
+      - *checkout-testbed
+      - *auth
+      - *setup-terraform
+      - *setup-gcloud
+      - *tools
+      - *certs   # Terraform's file() and the certs_dir check need them even to destroy
+      - *init-infra
       - name: Destroy
-        if: always() && (inputs.action == 'destroy' || inputs.destroy)
         run: |
-          [[ -n "${TUNNEL_PID:-}" ]] && kill "$TUNNEL_PID" 2>/dev/null || true
           if [[ -n "$($INFRA state list 2>/dev/null)" ]]; then
             make tf-destroy TF_ENV=onprem/infra
+          else
+            echo "onprem/infra state is empty"
           fi
           gcloud storage rm -r "gs://${TF_STATE_BUCKET}/onprem/vault" 2>/dev/null || true
-
-      - name: Remove local credentials
-        if: always()
-        run: rm -rf .kube ../dep-dlm-testbed/.kube ../dep-dlm-testbed/certs ../dep-dlm-testbed/userpass-client.cfg
+      - *cleanup
