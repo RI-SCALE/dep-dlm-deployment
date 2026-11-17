@@ -12,6 +12,7 @@ ONPREM_E2E = $(MAKE) -C $(TESTBED) GITOPS_ENV=staging TF_ENV=onprem \
 OIDC_IDENTITY_EMAIL ?= marvin.gajek@cern.ch
 
 VAULT_SAN := $(or $(VAULT_SAN),10.40.0.10)
+VALSTORAGE_HOST ?= valstorage.dep-dlm-onprem.example.com
 
 TESTBED_ENV       ?= staging
 TESTBED_BOOTSTRAP ?= ../dep-dlm-testbed/deploy/terraform/bootstrap
@@ -166,6 +167,11 @@ onprem-vault-apply: ## Apply the vault root through an IAP tunnel (SCOPE_PROFILE
 onprem-smoke-test: ## Smoke-test the node from pods (databases, Vault, validation storage)
 	terraform/scripts/with-iap-tunnel.sh $(NODE_ARGS) 6443 16443 -- \
 	  env KUBECONFIG=$(KUBE_DIR)/config-onprem pytest terraform/tests/test_deployed_infra.py -v
+
+.PHONY: onprem-certs
+onprem-certs: ## Testbed certs (validation storage SAN: its hostname) and Vault's certificate
+	VALSTORAGE_EXTERNAL_SAN=$(VALSTORAGE_HOST) $(MAKE) -C $(TESTBED) certs
+	$(MAKE) onprem-vault-cert
 
 # --- E2E: the testbed's suite against the on-premise reference ----------------
 .PHONY: onprem-e2e-prepare

@@ -116,10 +116,8 @@ jobs:
           pip install --break-system-packages pytest requests numpy
           ssh-keygen -t rsa -N '' -q -f ~/.ssh/google_compute_engine   # gcloud compute ssh (OS Login)
       - &certs
-        name: Certificates (testbed CA, Vault cert)
-        run: |
-          make -C ../dep-dlm-testbed certs
-          make onprem-vault-cert
+        name: Certificates (testbed CA, validation storage SAN, Vault cert)
+        run: make onprem-certs
       - &init-infra
         name: Terraform init (infra)
         run: make tf-init TF_ENV=onprem/infra
@@ -138,6 +136,21 @@ jobs:
         run: |
           make tf-plan TF_ENV=onprem/infra
           make tf-apply TF_ENV=onprem/infra
+
+      # The validation storage pulls its certificates only at boot; certs are
+      # regenerated on every run, so reset it (as the testbed's CI does).
+      - name: Validation storage re-pulls its certificates
+        run: |
+          gcloud compute instances reset "$($INFRA output -raw valstorage_instance_name)" \
+            --zone "$($INFRA output -raw zone)" --project "$GCP_PROJECT_ID"
+          IP=$($INFRA output -raw valstorage_ip) HOST=$($INFRA output -raw valstorage_hostname)
+          for i in $(seq 1 40); do
+            san=$(echo | timeout 5 openssl s_client -connect "${IP}:1094" -servername "$HOST" 2>/dev/null \
+              | openssl x509 -noout -ext subjectAltName 2>/dev/null) || true
+            if grep -q "DNS:${HOST}" <<<"$san"; then echo "xrd3 up, SAN contains ${HOST}"; exit 0; fi
+            echo "[$i] validation storage not up yet"; sleep 10
+          done
+          echo "::error::validation storage not up, or its certificate lacks ${HOST}: ${san:-no certificate}"; exit 1
 
       - &mask
         name: Mask database passwords
@@ -245,8 +258,7 @@ jobs:
       - *setup-terraform
       - *setup-gcloud
       - *tools
-      - name: Certificates (testbed CA; mounted by the E2E container)
-        run: make -C ../dep-dlm-testbed certs
+      - *certs   # mounted by the E2E container (same CA as on the services)
       - *init-infra
       - *mask
       - *tunnel
