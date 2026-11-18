@@ -39,14 +39,17 @@ flowchart LR
 | `charts/dep-dlm/` | Thin umbrella over the testbed's charts (`git+https`, pinned to commits, vendored as `.tgz` in `charts/`) plus secrets, ConfigMaps, DB bootstrap, optional Gateway |
 | `charts/dep-dlm/files/` | Patches, scripts and OPA policies copied from the testbed by `make sync`, in the testbed's layout |
 | `environments/<ri>/<stage>/` | `env.yaml` (namespace, pinned `baseRevision`, ESO) and `values.yaml` (overrides only) |
-| `argocd/root.yaml.tmpl` | External Secrets plus an ApplicationSet for one environment |
+| `argocd/` | `root.yaml.tmpl` (External Secrets + ApplicationSet per environment), `traefik.yaml.tmpl` (on premise) |
+| `terraform/`, `terraform.mk` | On-premise reference: GCE VM with kubeadm, host databases and Vault |
+| `.github/workflows/` | On-premise reference E2E (terraform, gitops, e2e, destroy) |
 | `scripts/` | `bootstrap.sh`, `sync-from-testbed.sh` |
-| `.devcontainer/` | kubectl, Helm with helm-git, yq, gcloud |
+| `docs/diagrams/` | Deployment diagrams (`make diagrams`) |
+| `.devcontainer/` | kubectl, Helm with helm-git, yq, gcloud, Terraform, graphviz |
 
-`<ri>` is `eiscat`, `enes`, `euro-bioimaging`, `bbmri` or `reference`;
-`<stage>` is `staging` or `production`. Environments are added when there is
-something real to deploy. `reference/staging` runs on the testbed's GCP
-infrastructure.
+`<ri>` is `eiscat`, `enes`, `euro-bioimaging`, `bbmri`, `reference` or
+`reference-onprem`; `<stage>` is `staging` or `production`. Environments are
+added when there is something real to deploy. `reference/staging` runs on the
+testbed's GCP infrastructure, `reference-onprem/staging` on one GCE VM.
 
 ## Secrets stores
 
@@ -59,10 +62,16 @@ infrastructure.
 
 The two validated setups (click for full size). Regenerate them with `make diagrams`.
 
-| reference/staging: GKE, `gcpsm` | reference-onprem/staging: kubeadm VM, `vault` |
-|---|---|
-| <a href="docs/diagrams/generated/reference_staging_gcp.png"><img src="docs/diagrams/generated/reference_staging_gcp.png" width="900"></a> | <a href="docs/diagrams/generated/reference_onprem_staging.png"><img src="docs/diagrams/generated/reference_onprem_staging.png" width="900"></a> |
-
+<table>
+<tr>
+<th>reference/staging: GKE, <code>gcpsm</code></th>
+<th>reference-onprem/staging: kubeadm VM, <code>vault</code></th>
+</tr>
+<tr>
+<td valign="top"><a href="docs/diagrams/generated/reference_staging_gcp.png"><img src="docs/diagrams/generated/reference_staging_gcp.png" width="900"></a></td>
+<td valign="top"><a href="docs/diagrams/generated/reference_onprem_staging.png"><img src="docs/diagrams/generated/reference_onprem_staging.png" width="900"></a></td>
+</tr>
+</table>
 
 ## Requirements
 
