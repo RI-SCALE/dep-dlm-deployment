@@ -151,8 +151,8 @@ pins the testbed subcharts to the same commit, so they cannot drift apart.
 ```mermaid
 flowchart LR
   a["Testbed commit<br/>passes CI + staging"] --> b["make sync TESTBED=&lt;sha&gt;<br/>make deps"]
-  b --> c["Review<br/>git diff"]
-  c --> d["Commit files/, charts/,<br/>Chart.lock, PROMOTION.md;<br/>tag vX.Y.Z"]
+  b --> c["Review git diff;<br/>on-premise E2E run"]
+  c --> d["Commit files/, charts/, Chart.lock,<br/>PROMOTION.md (commit + run link);<br/>tag vX.Y.Z"]
   d --> e["Environments bump<br/>baseRevision to the tag"]
 ```
 
