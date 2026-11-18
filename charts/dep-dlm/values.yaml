@@ -146,7 +146,7 @@ rucio-daemons:
 fts:
   enabled: true
   fullnameOverride: fts
-  image: { repository: mgajekcern/test-fts, tag: latest }   # pin to the validated digest/tag
+  image: { repository: mgajekcern/test-fts, tag: 3867d9453cff79ce4d3b9354065e1c57402dafc7 }   # = latest at the on-premise E2E runs
   ftsdb: { enabled: false }        # external MySQL, configured in fts3config
   env:
     - { name: REQUESTS_CA_BUNDLE, value: /etc/pki/tls/certs/ca-bundle.crt }
