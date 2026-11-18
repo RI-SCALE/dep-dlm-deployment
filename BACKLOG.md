@@ -8,6 +8,5 @@
 ## Production enablement
 
 - [ ] Upgrade and rollback procedures
-- [ ] OPA loads its policy at startup (today only via the PostSync hook)
 - [ ] Configurable CA file names (`5fca1cb1.*`) per site
 - [ ] Vault: more than one unseal key, no root token in Secret Manager

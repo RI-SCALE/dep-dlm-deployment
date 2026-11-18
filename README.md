@@ -75,11 +75,15 @@ The two validated setups (click for full size). Regenerate them with `make diagr
 
 ## Requirements
 
-- `dep-dlm-config` keys: `server.cfg`, `alembic.ini`, `idpsecrets.json`,
-  `fts3config`, `fts3restconfig`, `docker-entrypoint.sh`; with observability,
-  `rucio-db-dsn`, `fts-db-dsn`.
-- `dep-dlm-certs` keys: `hostcert.pem`, `hostkey.pem`, `hostcert_with_key.pem`,
-  `rucio_ca.pem`, `tls_ca_bundle.pem`, `5fca1cb1.0`, `5fca1cb1.signing_policy`.
+- A Kubernetes cluster (Argo CD is installed by `make bootstrap ... ARGS=--install-argocd`,
+  External Secrets by the root Application); for routing, a Gateway API implementation.
+- A secrets store, GCP Secret Manager or Vault (see [Secrets stores](#secrets-stores)),
+  seeded with:
+  - `dep-dlm-config` keys: `server.cfg`, `alembic.ini`, `idpsecrets.json`,
+    `fts3config`, `fts3restconfig`, `docker-entrypoint.sh`; with observability,
+    `rucio-db-dsn`, `fts-db-dsn`.
+  - `dep-dlm-certs` keys: `hostcert.pem`, `hostkey.pem`, `hostcert_with_key.pem`,
+    `rucio_ca.pem`, `tls_ca_bundle.pem`, `5fca1cb1.0`, `5fca1cb1.signing_policy`.
 - External PostgreSQL (Rucio) and MySQL (FTS); an OIDC IdP profile as in the
   [testbed's runbook 05](https://github.com/RI-SCALE/dep-dlm-testbed/blob/main/docs/runbooks/05-adding-a-new-idp-profile.md).
 
