@@ -48,4 +48,8 @@ opa-ingest: ## Push the chart's OPA policy and data into the running OPA (ENV=<r
 	python3 $(CHART)/files/scripts/ingest_policies.py \
 	  --opa-url http://localhost:18181 --opa-dir $(CHART)/files/configs/opa
 
+.PHONY: diagrams
+diagrams: ## Render docs/diagrams/*.py to docs/diagrams/generated/
+	cd docs/diagrams && mkdir -p generated && for f in *.py; do python3 "$$f"; done
+
 include terraform.mk

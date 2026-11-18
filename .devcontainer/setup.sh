@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Devcontainer tools for chart work, bootstrapping and the on-premise Terraform:
 # kubectl, helm (+ helm-git), yq, jq, envsubst, gcloud, terraform (+ tflint,
-# terraform-docs), pytest.
+# terraform-docs), pytest, graphviz + diagrams (make diagrams).
 set -euo pipefail
 
 BLUE='\033[0;34m'; GREEN='\033[0;32m'; RED='\033[0;31m'; NC='\033[0m'
@@ -13,6 +13,7 @@ YQ_VERSION=v4.44.3
 TF_VERSION=1.15.8           # same as dep-dlm-testbed (devcontainer and CI)
 TFLINT_VERSION=v0.64.0
 TFDOCS_VERSION=v0.24.0      # same as dep-dlm-testbed
+DIAGRAMS_VERSION=0.25.1     # docs/diagrams (make diagrams)
 
 # --- Helpers ------------------------------------------------------------------
 
@@ -79,6 +80,15 @@ install_terraform_docs() {
   rm -f /tmp/terraform-docs
 }
 
+# make diagrams: docs/diagrams/*.py -> docs/diagrams/generated/*.png
+install_diagrams() {
+  log "graphviz + diagrams ${DIAGRAMS_VERSION}"
+  apt-get install -y -qq graphviz python3-pip
+  # packaging comes from Debian (no RECORD file), so pip can't upgrade it in place.
+  pip install -q --break-system-packages --ignore-installed packaging
+  pip install -q --break-system-packages "diagrams==${DIAGRAMS_VERSION}"
+}
+
 # gcloud + GKE auth plugin: get-credentials, IAP tunnels, Secret Manager.
 install_gcloud() {
   log "gcloud + gke-gcloud-auth-plugin"
@@ -96,6 +106,7 @@ print_summary() {
   ok "kubectl $(kubectl version --client -o json | yq '.clientVersion.gitVersion') | $(helm version --short) | $(yq --version)"
   ok "$(terraform version | head -1) | tflint $(tflint --version | head -1) | $(terraform-docs --version)"
   ok "$(jq --version) | pytest $(python3 -m pytest --version 2>&1 | awk '{print $2}') | $(gcloud --version | head -1)"
+  ok "$(dot -V 2>&1) | diagrams $(pip show diagrams | awk '/^Version/ {print $2}')"
   echo "Next: make lint   (gcloud auth login && gcloud auth application-default login for Terraform)"
 }
 
@@ -111,6 +122,7 @@ main() {
   install_terraform
   install_terraform_docs
   install_gcloud
+  install_diagrams
   print_summary
 }
 

@@ -55,6 +55,15 @@ infrastructure.
 | `gcpsm` | GCP Secret Manager, Workload Identity (public cloud) |
 | `vault` | Vault, Kubernetes auth (on premise) |
 
+## Reference deployments
+
+The two validated setups (click for full size). Regenerate them with `make diagrams`.
+
+| reference/staging: GKE, `gcpsm` | reference-onprem/staging: kubeadm VM, `vault` |
+|---|---|
+| <a href="docs/diagrams/generated/reference_staging_gcp.png"><img src="docs/diagrams/generated/reference_staging_gcp.png" width="900"></a> | <a href="docs/diagrams/generated/reference_onprem_staging.png"><img src="docs/diagrams/generated/reference_onprem_staging.png" width="900"></a> |
+
+
 ## Requirements
 
 - `dep-dlm-config` keys: `server.cfg`, `alembic.ini`, `idpsecrets.json`,
