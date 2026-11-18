@@ -160,7 +160,13 @@ flowchart LR
 make sync TESTBED=<validated sha> [RUCIO_REF=<ref>]   # files/ + chart refs in Chart.yaml
 make deps && make lint                                 # re-vendor the subcharts (needs helm-git)
 git diff                                               # what is being promoted
+# run the on-premise E2E workflow on the branch; in PROMOTION.md rename
+# "Unreleased" to vX.Y.Z and add the run links
 git add charts/dep-dlm PROMOTION.md && git commit
+git tag -a vX.Y.Z -m "dep-dlm vX.Y.Z" && git push origin vX.Y.Z
+
+# per environment, when it should take the release
+yq -i '.baseRevision = "vX.Y.Z"' environments/<ri>/<stage>/env.yaml && git commit -am "chore(<ri>/<stage>): baseRevision vX.Y.Z"
 ```
 
 `TESTBED` also takes a tag, a branch or a path to a local checkout; refs are
