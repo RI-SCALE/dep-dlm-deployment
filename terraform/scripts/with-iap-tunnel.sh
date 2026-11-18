@@ -18,12 +18,16 @@ if port_open; then
 fi
 
 LOG="$(mktemp)"
-gcloud compute start-iap-tunnel "$INSTANCE" "$REMOTE_PORT" \
-  --local-host-port="localhost:${LOCAL_PORT}" --zone "$ZONE" --project "$PROJECT" >"$LOG" 2>&1 &
+# SSH over IAP rather than start-iap-tunnel: one IAP connection that SSH
+# multiplexes, instead of one IAP websocket per TCP connection (which fail
+# now and then under load: SSL RECORD_LAYER_FAILURE).
+gcloud compute ssh "$INSTANCE" --zone "$ZONE" --project "$PROJECT" --tunnel-through-iap --quiet -- \
+  -N -L "${LOCAL_PORT}:127.0.0.1:${REMOTE_PORT}" -o ExitOnForwardFailure=yes \
+  -o ServerAliveInterval=30 -o StrictHostKeyChecking=no >"$LOG" 2>&1 &
 TUNNEL_PID=$!
-trap 'kill "$TUNNEL_PID" 2>/dev/null || true; rm -f "$LOG"' EXIT
+trap 'pkill -P "$TUNNEL_PID" 2>/dev/null || true; kill "$TUNNEL_PID" 2>/dev/null || true; rm -f "$LOG"' EXIT
 
-for _ in $(seq 1 30); do
+for _ in $(seq 1 60); do
   if port_open; then
     "$@"
     exit
@@ -31,6 +35,6 @@ for _ in $(seq 1 30); do
   kill -0 "$TUNNEL_PID" 2>/dev/null || { echo "IAP tunnel failed:" >&2; cat "$LOG" >&2; exit 1; }
   sleep 1
 done
-echo "IAP tunnel to ${INSTANCE}:${REMOTE_PORT} not up after 30 s:" >&2
+echo "IAP tunnel to ${INSTANCE}:${REMOTE_PORT} not up after 60 s:" >&2
 cat "$LOG" >&2
 exit 1

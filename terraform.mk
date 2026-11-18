@@ -139,9 +139,7 @@ onprem-kubeconfig: ## Fetch the node's kubeconfig (.kube/config-onprem) and clus
 .PHONY: onprem-tunnel
 onprem-tunnel: ## Keep an IAP tunnel to kube-apiserver open on localhost:16443 (Ctrl-C to stop)
 	@echo "export KUBECONFIG=$(KUBE_DIR)/config-onprem"
-	gcloud compute ssh $$($(INFRA) output -raw node_name) --zone $$($(INFRA) output -raw zone) \
-	  --project $$($(INFRA) output -raw project_id) --tunnel-through-iap -- \
-	  -N -L 16443:127.0.0.1:6443 -o ServerAliveInterval=30
+	terraform/scripts/with-iap-tunnel.sh $(NODE_ARGS) 6443 16443 -- sleep infinity
 
 .PHONY: onprem-vault-cert
 onprem-vault-cert: ## Issue Vault's server certificate from the testbed CA (SAN: node IP, localhost for the tunnel)
