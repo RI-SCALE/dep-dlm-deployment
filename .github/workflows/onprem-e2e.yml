@@ -35,10 +35,10 @@ on:
         options: [egi-dev, ls-aai-dev]
         default: egi-dev
       token_mode:
-        description: "Token mode (profile-default: unmanaged for egi-dev, managed for ls-aai-dev)"
+        description: "Token mode (egi-dev: unmanaged only; EGI dev rejects custom audiences)"
         type: choice
-        options: [profile-default, managed, unmanaged]
-        default: profile-default
+        options: [unmanaged, managed]
+        default: unmanaged
       testbed_ref:
         description: "dep-dlm-testbed ref (certs, E2E suite)"
         default: main
@@ -75,7 +75,7 @@ env:
   GCP_REGION: ${{ inputs.gcp_region }}
   TF_STATE_BUCKET: ${{ inputs.tf_state_bucket }}
   SCOPE_PROFILE: ${{ inputs.scope_profile }}
-  TOKEN_MODE: ${{ inputs.token_mode != 'profile-default' && inputs.token_mode || '' }}   # empty: profile default
+  TOKEN_MODE: ${{ inputs.token_mode }}
   OIDC_CLIENT_SECRET: ${{ inputs.scope_profile == 'ls-aai-dev' && secrets.LS_AAI_DEV_OIDC_CLIENT_SECRET || secrets.EGI_DEV_OIDC_CLIENT_SECRET }}
   ENV_PATH: reference-onprem/staging
   NS: dep-dlm-staging
@@ -113,6 +113,8 @@ jobs:
         name: Tools
         run: |
           [[ -n "$OIDC_CLIENT_SECRET" ]] || { echo "::error::OIDC client secret for ${SCOPE_PROFILE} missing (repository secret)"; exit 1; }
+          [[ "$SCOPE_PROFILE/$TOKEN_MODE" != egi-dev/managed ]] || {
+            echo "::error::egi-dev needs token_mode=unmanaged (EGI dev rejects custom audiences)"; exit 1; }
           pip install --break-system-packages pytest requests numpy
           ssh-keygen -t rsa -N '' -q -f ~/.ssh/google_compute_engine   # gcloud compute ssh (OS Login)
       - &certs
