@@ -269,9 +269,9 @@ jobs:
         run: |
           kubectl -n "$NS" annotate externalsecret --all force-sync="$(date +%s)" --overwrite
           sleep 20
-          DEPLOYS=$(kubectl -n "$NS" get deploy -o name | grep -v '^deployment.apps/opa$')
-          kubectl -n "$NS" rollout restart $DEPLOYS
-          for d in $DEPLOYS; do kubectl -n "$NS" rollout status "$d" --timeout=10m; done
+          mapfile -t DEPLOYS < <(kubectl -n "$NS" get deploy -o name | grep -v '^deployment.apps/opa$')
+          kubectl -n "$NS" rollout restart "${DEPLOYS[@]}"
+          for d in "${DEPLOYS[@]}"; do kubectl -n "$NS" rollout status "$d" --timeout=10m; done
 
       - name: Testbed E2E (init, transfers, deletion)
         run: make onprem-e2e

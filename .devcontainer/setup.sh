@@ -31,9 +31,9 @@ detect_arch() {
 }
 
 install_apt_packages() {
-  log "apt packages (envsubst, jq, unzip, gpg, python3 + pytest)"
+  log "apt packages (envsubst, jq, unzip, gpg, shellcheck, python3 + pytest)"
   apt-get update -qq
-  apt-get install -y -qq curl ca-certificates gnupg gettext-base jq unzip python3 python3-pytest
+  apt-get install -y -qq curl ca-certificates gnupg gettext-base jq unzip shellcheck python3 python3-pytest
 }
 
 install_kubectl() {
