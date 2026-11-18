@@ -1,3 +1,14 @@
+terraform {
+  required_version = ">= 1.7"
+
+  required_providers {
+    google = {
+      source  = "hashicorp/google"
+      version = ">= 5.0"
+    }
+  }
+}
+
 # A plain VPC for the single on-premise-style node. No GKE secondary
 # ranges and no private-services peering: databases and Vault run on the
 # node itself, the way they would sit next to a partner's cluster.

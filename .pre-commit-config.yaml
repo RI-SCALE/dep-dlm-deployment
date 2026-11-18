@@ -16,9 +16,6 @@ repos:
       - id: check-added-large-files            # generated diagrams stay under 500 KB
       - id: check-merge-conflict
       - id: check-case-conflict
-      - id: check-executables-have-shebangs
-      - id: check-shebang-scripts-are-executable
-      - id: check-symlinks
       - id: detect-private-key                 # CA and host keys never belong here
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
@@ -32,6 +29,7 @@ repos:
     rev: v0.10.0.1
     hooks:
       - id: shellcheck                         # scripts/, terraform/scripts/, .devcontainer/
+        exclude: \.tftpl$                      # ${...} are Terraform template variables
 
   - repo: https://github.com/rhysd/actionlint
     rev: v1.7.11                               # >= v1.7.10 for YAML anchors

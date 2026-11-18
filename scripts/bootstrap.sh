@@ -58,6 +58,7 @@ TRAEFIK_CHART_VERSION="${TRAEFIK_CHART_VERSION:-42.4.0}"
 if [[ "$(yq '.gateway.controller // ""' "$ENV_FILE")" == "traefik" ]]; then
   echo "==> Applying Traefik (Gateway API controller)"
   export TRAEFIK_CHART_VERSION
+  # shellcheck disable=SC2016  # literal variable list for envsubst
   envsubst '${TRAEFIK_CHART_VERSION}' < "${REPO_ROOT}/argocd/traefik.yaml.tmpl" | kubectl apply -f -
 fi
 

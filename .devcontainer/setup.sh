@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Devcontainer tools for chart work, bootstrapping and the on-premise Terraform:
 # kubectl, helm (+ helm-git), yq, jq, envsubst, gcloud, terraform (+ tflint,
-# terraform-docs), pytest, graphviz + diagrams (make diagrams).
+# terraform-docs), pytest, graphviz + diagrams (make diagrams), pre-commit.
 set -euo pipefail
 
 BLUE='\033[0;34m'; GREEN='\033[0;32m'; RED='\033[0;31m'; NC='\033[0m'
@@ -14,6 +14,7 @@ TF_VERSION=1.15.8           # same as dep-dlm-testbed (devcontainer and CI)
 TFLINT_VERSION=v0.64.0
 TFDOCS_VERSION=v0.24.0      # same as dep-dlm-testbed
 DIAGRAMS_VERSION=0.25.1     # docs/diagrams (make diagrams)
+PRECOMMIT_VERSION=4.7.0     # .pre-commit-config.yaml
 
 # --- Helpers ------------------------------------------------------------------
 
@@ -51,8 +52,9 @@ install_helm() {
 install_helm_git() {
   log "helm-git ${HELM_GIT_VERSION}"
   helm plugin list | grep -q '^helm-git' && return 0
-  helm plugin install https://github.com/aslafy-z/helm-git --version "$HELM_GIT_VERSION" \
-    $(helm version --short | grep -q '^v4' && echo --verify=false)
+  local verify=()
+  helm version --short | grep -q '^v4' && verify=(--verify=false)
+  helm plugin install https://github.com/aslafy-z/helm-git --version "$HELM_GIT_VERSION" "${verify[@]}"
 }
 
 install_yq() {
@@ -89,6 +91,15 @@ install_diagrams() {
   pip install -q --break-system-packages "diagrams==${DIAGRAMS_VERSION}"
 }
 
+# Hooks from .pre-commit-config.yaml, run on every commit.
+install_precommit() {
+  log "pre-commit ${PRECOMMIT_VERSION}"
+  pip install -q --break-system-packages "pre-commit==${PRECOMMIT_VERSION}"
+  if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    pre-commit install
+  fi
+}
+
 # gcloud + GKE auth plugin: get-credentials, IAP tunnels, Secret Manager.
 install_gcloud() {
   log "gcloud + gke-gcloud-auth-plugin"
@@ -106,7 +117,7 @@ print_summary() {
   ok "kubectl $(kubectl version --client -o json | yq '.clientVersion.gitVersion') | $(helm version --short) | $(yq --version)"
   ok "$(terraform version | head -1) | tflint $(tflint --version | head -1) | $(terraform-docs --version)"
   ok "$(jq --version) | pytest $(python3 -m pytest --version 2>&1 | awk '{print $2}') | $(gcloud --version | head -1)"
-  ok "$(dot -V 2>&1) | diagrams $(pip show diagrams | awk '/^Version/ {print $2}')"
+  ok "$(dot -V 2>&1) | diagrams $(pip show diagrams | awk '/^Version/ {print $2}') | $(pre-commit --version)"
   echo "Next: make lint   (gcloud auth login && gcloud auth application-default login for Terraform)"
 }
 
@@ -123,6 +134,7 @@ main() {
   install_terraform_docs
   install_gcloud
   install_diagrams
+  install_precommit
   print_summary
 }
 

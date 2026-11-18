@@ -6,13 +6,16 @@ IAP (`35.235.240.0/20`), optional public ports.
 <!-- BEGIN_TF_DOCS -->
 ## Requirements
 
-No requirements.
+| Name | Version |
+| ---- | ------- |
+| <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.7 |
+| <a name="requirement_google"></a> [google](#requirement\_google) | >= 5.0 |
 
 ## Providers
 
 | Name | Version |
 | ---- | ------- |
-| <a name="provider_google"></a> [google](#provider\_google) | n/a |
+| <a name="provider_google"></a> [google](#provider\_google) | >= 5.0 |
 
 ## Modules
 

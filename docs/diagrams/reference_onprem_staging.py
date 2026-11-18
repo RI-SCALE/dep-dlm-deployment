@@ -80,7 +80,9 @@ with Diagram(
                     fts = Deployment("FTS3")
                     opa = Deployment("OPA")
 
-        with Cluster("GCE VM: dep-dlm-onprem-validation-storage", graph_attr=cluster_attr):
+        with Cluster(
+            "GCE VM: dep-dlm-onprem-validation-storage", graph_attr=cluster_attr
+        ):
             valstorage = ComputeEngine("xrd3/xrd4 (XRootD)\nteapot1/teapot2 (WebDAV)")
 
     # GitOps and secrets

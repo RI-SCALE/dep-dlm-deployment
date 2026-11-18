@@ -193,7 +193,7 @@ git tag -a vX.Y.Z -m "dep-dlm vX.Y.Z" && git push origin vX.Y.Z
 yq -i '.baseRevision = "vX.Y.Z"' environments/<ri>/<stage>/env.yaml && git commit -am "chore(<ri>/<stage>): baseRevision vX.Y.Z"
 ```
 
-Rolling back is the reverse: set `baseRevision` back to the previous tag and restore the databases if the release migrated a schema 
+Rolling back is the reverse: set `baseRevision` back to the previous tag and restore the databases if the release migrated a schema
 ([docs/single-node.md](docs/single-node.md#3-upgrades-patching-and-rollback)).
 
 `TESTBED` also takes a tag, a branch or a path to a local checkout; refs are
