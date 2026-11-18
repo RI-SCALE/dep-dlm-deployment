@@ -55,6 +55,26 @@ infrastructure.
 | `gcpsm` | GCP Secret Manager, Workload Identity (public cloud) |
 | `vault` | Vault, Kubernetes auth (on premise) |
 
+## Requirements
+
+- `dep-dlm-config` keys: `server.cfg`, `alembic.ini`, `idpsecrets.json`,
+  `fts3config`, `fts3restconfig`, `docker-entrypoint.sh`; with observability,
+  `rucio-db-dsn`, `fts-db-dsn`.
+- `dep-dlm-certs` keys: `hostcert.pem`, `hostkey.pem`, `hostcert_with_key.pem`,
+  `rucio_ca.pem`, `tls_ca_bundle.pem`, `5fca1cb1.0`, `5fca1cb1.signing_policy`.
+- External PostgreSQL (Rucio) and MySQL (FTS); an OIDC IdP profile as in the
+  [testbed's runbook 05](https://github.com/RI-SCALE/dep-dlm-testbed/blob/main/docs/runbooks/05-adding-a-new-idp-profile.md).
+
+## Known limitations
+
+- Upstream Rucio and FTS are patched (testbed `patches/`); see the testbed's
+  `docs/patches.md`.
+- The Gateway is HTTP only (GKE Gateway; Traefik on premise); public TLS follows
+  the testbed's runbook 08.
+- Only Rucio is routed through the Gateway; FTS is reached in-cluster.
+- OPA's policy is loaded by the `opa-init` PostSync hook: after an OPA restart
+  without a sync, Rucio denies requests until the next sync or `make opa-ingest ENV=<ri>/<stage>`.
+
 ## Order of a sync
 
 ```mermaid

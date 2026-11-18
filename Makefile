@@ -39,4 +39,13 @@ argocd-open: ## Open the Argo CD UI (port-forward to https://localhost:8080 unti
 	@echo "https://localhost:8080  (Ctrl-C to stop)"
 	kubectl -n argocd port-forward svc/argocd-server 8080:443
 
+.PHONY: opa-ingest
+opa-ingest: ## Push the chart's OPA policy and data into the running OPA (ENV=<ri>/<stage>; idempotent)
+	@NS=$$(yq '.namespace' environments/$(ENV)/env.yaml); \
+	kubectl -n $$NS port-forward svc/opa 18181:8181 >/dev/null 2>&1 & PF_PID=$$!; \
+	trap "kill $$PF_PID 2>/dev/null" EXIT; \
+	sleep 2; \
+	python3 $(CHART)/files/scripts/ingest_policies.py \
+	  --opa-url http://localhost:18181 --opa-dir $(CHART)/files/configs/opa
+
 include terraform.mk
