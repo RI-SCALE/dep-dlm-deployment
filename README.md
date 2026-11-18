@@ -205,7 +205,9 @@ Helm rewrites the archives with new timestamps.
 ## Adding an environment
 
 0. On premise, prepare the machine first: [docs/single-node.md](docs/single-node.md).
-1. Copy `environments/reference/staging/` to `environments/<ri>/<stage>/`.
+1. Copy `environments/reference/staging/` (cloud, Secret Manager) or
+   `environments/reference-onprem/staging/` (on premise, Vault) to
+   `environments/<ri>/<stage>/`.
 2. Set namespace, ESO, secrets store, remote secret keys, DB host and, on GKE,
    the Gateway.
 3. Seed the store with the keys listed under [Requirements](#requirements).
