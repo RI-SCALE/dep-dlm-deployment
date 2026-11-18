@@ -7,27 +7,31 @@ on:
     branches: [main]
 
 jobs:
-  helm:
-    name: Helm lint
+  pre-commit:
+    name: pre-commit + terraform validate
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
       - uses: azure/setup-helm@v4
         with:
           version: v3.17.3
-      - run: make lint          # vendored subcharts, no helm-git needed
-
-  terraform:
-    name: Terraform fmt + validate
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v6
       - uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: "1.15.8"
           terraform_wrapper: false
-      - run: terraform fmt -check -recursive terraform
-      - name: validate
+      - uses: terraform-linters/setup-tflint@v4
+        with:
+          tflint_version: v0.64.0     # same as the devcontainer
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/pre-commit
+          key: pre-commit-${{ hashFiles('.pre-commit-config.yaml') }}
+      - run: pip install pre-commit==4.7.0   # same as the devcontainer
+      - run: pre-commit run --all-files --show-diff-on-failure
+      - name: terraform validate   # not a hook, needs init per root
         run: |
           for d in terraform/environments/onprem/*/; do
             terraform -chdir="$d" init -backend=false -input=false
