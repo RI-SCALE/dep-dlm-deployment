@@ -43,7 +43,7 @@ flowchart LR
 | `terraform/`, `terraform.mk` | On-premise reference: GCE VM with kubeadm, host databases and Vault |
 | `.github/workflows/` | On-premise reference E2E (terraform, gitops, e2e, destroy) |
 | `scripts/` | `bootstrap.sh`, `sync-from-testbed.sh` |
-| `docs/diagrams/` | Deployment diagrams (`make diagrams`) |
+| `docs/` | [Single-node install, configuration, upgrades](docs/single-node.md); deployment diagrams (`make diagrams`) |
 | `.devcontainer/` | kubectl, Helm with helm-git, yq, gcloud, Terraform, graphviz |
 
 `<ri>` is `eiscat`, `enes`, `euro-bioimaging`, `bbmri`, `reference` or
@@ -86,6 +86,8 @@ The two validated setups (click for full size). Regenerate them with `make diagr
     `rucio_ca.pem`, `tls_ca_bundle.pem`, `5fca1cb1.0`, `5fca1cb1.signing_policy`.
 - External PostgreSQL (Rucio) and MySQL (FTS); an OIDC IdP profile as in the
   [testbed's runbook 05](https://github.com/RI-SCALE/dep-dlm-testbed/blob/main/docs/runbooks/05-adding-a-new-idp-profile.md).
+
+For one machine (kubeadm with PostgreSQL, MySQL and Vault on the host), see [docs/single-node.md](docs/single-node.md); it also explains each key.
 
 ## Known limitations
 
@@ -191,6 +193,9 @@ git tag -a vX.Y.Z -m "dep-dlm vX.Y.Z" && git push origin vX.Y.Z
 yq -i '.baseRevision = "vX.Y.Z"' environments/<ri>/<stage>/env.yaml && git commit -am "chore(<ri>/<stage>): baseRevision vX.Y.Z"
 ```
 
+Rolling back is the reverse: set `baseRevision` back to the previous tag and restore the databases if the release migrated a schema 
+([docs/single-node.md](docs/single-node.md#3-upgrades-patching-and-rollback)).
+
 `TESTBED` also takes a tag, a branch or a path to a local checkout; refs are
 always pinned as full commit SHAs. Only `make deps` needs helm-git: Argo CD
 renders the committed `.tgz` subcharts, so it needs neither the plugin nor
@@ -199,8 +204,9 @@ Helm rewrites the archives with new timestamps.
 
 ## Adding an environment
 
+0. On premise, prepare the machine first: [docs/single-node.md](docs/single-node.md).
 1. Copy `environments/reference/staging/` to `environments/<ri>/<stage>/`.
 2. Set namespace, ESO, secrets store, remote secret keys, DB host and, on GKE,
    the Gateway.
-3. Seed the store with the keys listed in `PROMOTION.md`.
+3. Seed the store with the keys listed under [Requirements](#requirements).
 4. `make bootstrap ENV=<ri>/<stage> ARGS=--install-argocd` on that cluster.
