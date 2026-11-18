@@ -30,6 +30,10 @@ TF_APPROVE     = $(if $(filter 1,$(AUTO_APPROVE)),-auto-approve,)
 TF_DOC_DIRS = terraform/environments/onprem/infra terraform/environments/onprem/vault \
               terraform/modules/networking terraform/modules/onprem-node terraform/modules/vault-config
 
+# Node coordinates from the infra root's outputs.
+INFRA     = terraform -chdir=terraform/environments/onprem/infra
+NODE_ARGS = "$$($(INFRA) output -raw node_name)" "$$($(INFRA) output -raw zone)" "$$($(INFRA) output -raw project_id)"
+
 # OIDC inputs (vault root, validation storage), per IdP profile (same values as the testbed's Makefile).
 # $(or …): set-but-empty variables (e.g. from a sourced env file) fall back to the defaults.
 SCOPE_PROFILE          := $(or $(SCOPE_PROFILE),egi-dev)
@@ -56,6 +60,8 @@ else ifeq ($(SCOPE_PROFILE),ls-aai-dev)
   TEAPOT_AUDIENCES    ?= ["https://teapot1.example.org/","https://teapot2.example.org/"]
   TEAPOT_EXTRA_SUBS   ?= ["4ff05c0b-1d83-42b7-a00a-8bd162df4165","28f7bc3a2d32a4a722f6eb24f77f7fbe42eb6471@lifescience-ri.eu"]
   OIDC_IDENTITY_SUB   ?= 28f7bc3a2d32a4a722f6eb24f77f7fbe42eb6471@lifescience-ri.eu
+else
+  $(error SCOPE_PROFILE must be egi-dev or ls-aai-dev, got '$(SCOPE_PROFILE)')
 endif
 
 # Every TF_VAR_* any root uses; Terraform ignores those a root doesn't declare.
@@ -79,9 +85,9 @@ TF_VAR_project_id="$$GCP_PROJECT_ID" \
 	TF_VAR_teapot_extra_subs='$(TEAPOT_EXTRA_SUBS)'
 endef
 
-# Node coordinates from the infra root's outputs.
-INFRA     = terraform -chdir=terraform/environments/onprem/infra
-NODE_ARGS = "$$($(INFRA) output -raw node_name)" "$$($(INFRA) output -raw zone)" "$$($(INFRA) output -raw project_id)"
+ifeq ($(SCOPE_PROFILE)/$(TOKEN_MODE),egi-dev/managed)
+  $(error egi-dev needs TOKEN_MODE=unmanaged (EGI dev rejects custom audiences))
+endif
 
 .PHONY: tf-fmt
 tf-fmt: ## Format all Terraform files
@@ -133,8 +139,9 @@ onprem-kubeconfig: ## Fetch the node's kubeconfig (.kube/config-onprem) and clus
 .PHONY: onprem-tunnel
 onprem-tunnel: ## Keep an IAP tunnel to kube-apiserver open on localhost:16443 (Ctrl-C to stop)
 	@echo "export KUBECONFIG=$(KUBE_DIR)/config-onprem"
-	gcloud compute start-iap-tunnel $$($(INFRA) output -raw node_name) 6443 \
-	  --local-host-port=localhost:16443 --zone $$($(INFRA) output -raw zone) --project $$($(INFRA) output -raw project_id)
+	gcloud compute ssh $$($(INFRA) output -raw node_name) --zone $$($(INFRA) output -raw zone) \
+	  --project $$($(INFRA) output -raw project_id) --tunnel-through-iap -- \
+	  -N -L 16443:127.0.0.1:6443 -o ServerAliveInterval=30
 
 .PHONY: onprem-vault-cert
 onprem-vault-cert: ## Issue Vault's server certificate from the testbed CA (SAN: node IP, localhost for the tunnel)
