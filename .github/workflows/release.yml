@@ -1,0 +1,42 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write   # create the GitHub Release
+
+jobs:
+  release:
+    name: Check evidence and publish
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: PROMOTION.md has the release entry
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          # Expected right after the tag's heading:
+          #   ## vX.Y.Z
+          #   - Testbed: dep-dlm-testbed `<sha>` (`make sync`)
+          #   - Evidence: [...](https://github.com/.../actions/runs/<id>) ...
+          grep -A2 -x "## ${TAG}" PROMOTION.md | tail -n +2 > notes.md || true
+          if ! sed -n 1p notes.md | grep -q '^- Testbed: ' ||
+             ! sed -n 2p notes.md | grep -q '^- Evidence: .*actions/runs/'; then
+            echo "::error::PROMOTION.md needs '## ${TAG}' followed by '- Testbed:' and '- Evidence:' (with E2E run links): rename 'Unreleased' to ${TAG} before tagging"
+            exit 1
+          fi
+          cat notes.md
+
+      - uses: azure/setup-helm@v4
+        with:
+          version: v3.17.3
+      - run: make lint          # the tag renders every environment
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: gh release create "$TAG" --title "dep-dlm $TAG" --notes-file notes.md --verify-tag

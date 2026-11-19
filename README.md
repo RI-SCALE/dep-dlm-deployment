@@ -41,7 +41,7 @@ flowchart LR
 | `environments/<ri>/<stage>/` | `env.yaml` (namespace, pinned `baseRevision`, ESO) and `values.yaml` (overrides only) |
 | `argocd/` | `root.yaml.tmpl` (External Secrets + ApplicationSet per environment), `traefik.yaml.tmpl` (on premise) |
 | `terraform/`, `terraform.mk` | On-premise reference: GCE VM with kubeadm, host databases and Vault |
-| `.github/workflows/` | On-premise reference E2E (terraform, gitops, e2e, destroy) |
+| `.github/workflows/` | On-premise reference E2E (terraform, gitops, e2e, destroy); static checks; release on `v*` tags |
 | `scripts/` | `bootstrap.sh`, `sync-from-testbed.sh` |
 | `docs/` | [Single-node install, configuration, upgrades](docs/single-node.md); deployment diagrams (`make diagrams`) |
 | `.devcontainer/` | kubectl, Helm with helm-git, yq, gcloud, Terraform, graphviz |
@@ -177,20 +177,18 @@ flowchart LR
   a["Testbed commit<br/>passes CI + staging"] --> b["make sync TESTBED=&lt;sha&gt;<br/>make deps"]
   b --> c["Review git diff;<br/>on-premise E2E run"]
   c --> d["Commit files/, charts/, Chart.lock,<br/>PROMOTION.md (commit + run link);<br/>tag vX.Y.Z"]
-  d --> e["Environments bump<br/>baseRevision to the tag"]
+  d --> r["Release workflow:<br/>checks PROMOTION.md,<br/>publishes GitHub Release"]
+  r --> e["Environments bump<br/>baseRevision to the tag"]
 ```
 
 ```bash
 make sync TESTBED=<validated sha> [RUCIO_REF=<ref>]   # files/ + chart refs in Chart.yaml
 make deps && make lint                                 # re-vendor the subcharts (needs helm-git)
 git diff                                               # what is being promoted
-# run the on-premise E2E workflow on the branch; in PROMOTION.md rename
-# "Unreleased" to vX.Y.Z and add the run links
-git add charts/dep-dlm PROMOTION.md && git commit
-git tag -a vX.Y.Z -m "dep-dlm vX.Y.Z" && git push origin vX.Y.Z
-
-# per environment, when it should take the release
-yq -i '.baseRevision = "vX.Y.Z"' environments/<ri>/<stage>/env.yaml && git commit -am "chore(<ri>/<stage>): baseRevision vX.Y.Z"
+# run the on-premise E2E workflow on the branch; in PROMOTION.md add the run links,
+# rename "## Unreleased" to "## vX.Y.Z" and add a new empty "## Unreleased" above it
+git add charts/dep-dlm PROMOTION.md && git commit && git push
+git tag -a vX.Y.Z -m "dep-dlm vX.Y.Z" && git push origin vX.Y.Z   # Release workflow checks and publishes
 ```
 
 Rolling back is the reverse: set `baseRevision` back to the previous tag and restore the databases if the release migrated a schema

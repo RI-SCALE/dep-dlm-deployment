@@ -1,6 +1,8 @@
 # Promotion record
 
-Each release (`vX.Y.Z`, pinned as `baseRevision`) records what it was promoted from.
+Each release (`vX.Y.Z`, pinned as `baseRevision`) records what it was promoted from:
+a `- Testbed:` and an `- Evidence:` line (E2E run links) under its heading. The
+Release workflow checks both lines and publishes them as the release notes.
 
 ## Unreleased
 - Testbed: dep-dlm-testbed `a5af379b7c47d353e7b1ff30700ad26c7b5105c1` (`make sync`)
