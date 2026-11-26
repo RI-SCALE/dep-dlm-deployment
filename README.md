@@ -2,7 +2,11 @@
 
 GitOps deployment of the DEP DLM data orchestration layer (Rucio server and
 daemons, FTS, OPA) for RI-SCALE partners. Each RI runs its own instance, with
-its own cluster, secrets store and upgrade pace. Patterns are validated in
+its own cluster, secrets store and upgrade pace.
+
+Developed within RI-SCALE WP2 (DEP data lifecycle management).
+
+Patterns are validated in
 [dep-dlm-testbed](https://github.com/RI-SCALE/dep-dlm-testbed) first and then
 promoted here (see `PROMOTION.md`).
 
