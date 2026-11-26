@@ -5,7 +5,7 @@
 #   Secret     dep-dlm-certs     host certificates and CA bundle
 #   Secret     dep-dlm-config    server.cfg, alembic.ini, idpsecrets.json,
 #                                fts3config, fts3restconfig, ... (see README)
-#   ConfigMap  dep-dlm-patches   Rucio/FTS patches and the OPA policy package
+#   ConfigMap  dep-dlm-patches   Rucio/FTS patches (the OPA policy package is in the image)
 #   ConfigMap  dep-dlm-scripts   bootstrap-db.py, ingest_policies.py
 #   ConfigMap  dep-dlm-fts-config, opa-evaluator, opa-policies
 
@@ -37,7 +37,7 @@ secrets:
 bootstrapDb:
   enabled: true
   dbHost: ""                       # Rucio PostgreSQL, reachable from the cluster
-  image: { repository: rucio/rucio-server, tag: release-41.2.1 }
+  image: { repository: ghcr.io/ri-scale/dep-dlm-containers/rucio-server, tag: 67c1b54e76b116288c93a0079c2c1c11cde0c6da }
 
 opaInit:
   enabled: true
@@ -60,7 +60,7 @@ rucio-server:
   enabled: true
   fullnameOverride: rucio-server
   replicaCount: 1
-  image: { repository: rucio/rucio-server, tag: release-41.2.1, pullPolicy: IfNotPresent }
+  image: { repository: ghcr.io/ri-scale/dep-dlm-containers/rucio-server, tag: 67c1b54e76b116288c93a0079c2c1c11cde0c6da, pullPolicy: IfNotPresent }
   useSSL: false
   service: { type: ClusterIP, port: 80, targetPort: 80 }
   useDeprecatedImplicitSecrets: false
@@ -99,15 +99,11 @@ rucio-server:
     - { configMapFullName: dep-dlm-patches, volumeName: rse-patch,            mountPath: /usr/local/lib/python3.9/site-packages/rucio/core/rse.py,                      subPath: rucio--rse.py }
     - { configMapFullName: dep-dlm-patches, volumeName: authentication-patch, mountPath: /usr/local/lib/python3.9/site-packages/rucio/core/authentication.py,           subPath: rucio--authentication.py }
     - { configMapFullName: dep-dlm-patches, volumeName: common-patch,         mountPath: /usr/local/lib/python3.9/site-packages/rucio/web/rest/flaskapi/v1/common.py,   subPath: rucio--common.py }
-    # Policy package, mounted into site-packages (see the testbed's values for why not pip).
-    - { configMapFullName: dep-dlm-patches, volumeName: opa-policy-init,       mountPath: /usr/local/lib/python3.9/site-packages/rucio_opa_v1_policy/__init__.py,   subPath: rucio--rucio_opa_v1_policy--src--rucio_opa_v1_policy--__init__.py }
-    - { configMapFullName: dep-dlm-patches, volumeName: opa-policy-client,     mountPath: /usr/local/lib/python3.9/site-packages/rucio_opa_v1_policy/opa_client.py, subPath: rucio--rucio_opa_v1_policy--src--rucio_opa_v1_policy--opa_client.py }
-    - { configMapFullName: dep-dlm-patches, volumeName: opa-policy-permission, mountPath: /usr/local/lib/python3.9/site-packages/rucio_opa_v1_policy/permission.py, subPath: rucio--rucio_opa_v1_policy--src--rucio_opa_v1_policy--permission.py }
 
 rucio-daemons:
   enabled: true
   fullnameOverride: rucio-daemons
-  image: { repository: rucio/rucio-daemons, tag: release-41.2.1, pullPolicy: IfNotPresent }
+  image: { repository: ghcr.io/ri-scale/dep-dlm-containers/rucio-daemons, tag: 67c1b54e76b116288c93a0079c2c1c11cde0c6da, pullPolicy: IfNotPresent }
   useDeprecatedImplicitSecrets: false
   config:
     conveyor:
@@ -146,7 +142,7 @@ rucio-daemons:
 fts:
   enabled: true
   fullnameOverride: fts
-  image: { repository: mgajekcern/test-fts, tag: 3867d9453cff79ce4d3b9354065e1c57402dafc7 }   # = latest at the on-premise E2E runs
+  image: { repository: ghcr.io/ri-scale/dep-dlm-containers/fts, tag: 67c1b54e76b116288c93a0079c2c1c11cde0c6da }
   ftsdb: { enabled: false }        # external MySQL, configured in fts3config
   env:
     - { name: REQUESTS_CA_BUNDLE, value: /etc/pki/tls/certs/ca-bundle.crt }

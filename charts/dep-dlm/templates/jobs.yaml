@@ -44,15 +44,9 @@ spec:
             - { name: config,  mountPath: /opt/rucio/etc/alembic.ini,      subPath: alembic.ini }
             - { name: config,  mountPath: /opt/rucio/etc/idpsecrets.json, subPath: idpsecrets.json }
             - { name: scripts, mountPath: /scripts }
-            {{- range list "__init__" "opa_client" "permission" }}
-            - name: patches
-              mountPath: /usr/local/lib/python3.9/site-packages/rucio_opa_v1_policy/{{ . }}.py
-              subPath: rucio--rucio_opa_v1_policy--src--rucio_opa_v1_policy--{{ . }}.py
-            {{- end }}
       volumes:
         - { name: config,  secret:    { secretName: dep-dlm-config } }
         - { name: scripts, configMap: { name: dep-dlm-scripts, defaultMode: 0755 } }
-        - { name: patches, configMap: { name: dep-dlm-patches } }
 {{- end }}
 {{- if and .Values.opaInit.enabled (index .Values "opa" "enabled") }}
 ---
