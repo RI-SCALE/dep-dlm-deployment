@@ -2,17 +2,19 @@ apiVersion: v2
 name: dep-dlm
 description: |
   DEP DLM data orchestration layer (Rucio server and daemons, FTS, OPA) for
-  one RI environment. Thin umbrella over charts from dep-dlm-testbed; adds
-  secrets projection, policy/patch ConfigMaps, DB bootstrap and an optional
-  Gateway.
+  one RI environment. Thin umbrella over the dep-dlm-helm-charts and the
+  Rucio fork charts; adds secrets projection, policy/patch ConfigMaps, DB
+  bootstrap and an optional Gateway.
 type: application
 version: 0.1.0
 appVersion: "41.2.1"
 
-# Pulled with the helm-git plugin, pinned to commits (?ref=<sha>), and vendored
-# with `make deps`: commit charts/ and Chart.lock. Argo CD then renders the
-# vendored .tgz and needs neither the plugin nor network access to the sources.
-# The testbed refs are bumped by `make sync`, together with files/.
+# fts, opa and observability come from dep-dlm-helm-charts (OCI, released
+# versions); the Rucio charts from the fork via the helm-git plugin, pinned
+# to a commit (?ref=<sha>). All are vendored with `make deps`: commit charts/
+# and Chart.lock. Argo CD then renders the vendored .tgz and needs neither the
+# plugin nor network access to the sources. `make sync` updates files/ from
+# the testbed; chart versions are bumped here by hand.
 dependencies:
   - name: rucio-server
     version: "41.2.1"
@@ -24,13 +26,13 @@ dependencies:
     condition: rucio-daemons.enabled
   - name: fts
     version: "0.1.0"
-    repository: "git+https://github.com/RI-SCALE/dep-dlm-testbed.git@deploy/helm-charts/fts?ref=c4e6ca37584bd470608978f2315e5bcdc72a1be6"
+    repository: "oci://ghcr.io/ri-scale/charts/dep-dlm"
     condition: fts.enabled
   - name: opa
     version: "0.1.0"
-    repository: "git+https://github.com/RI-SCALE/dep-dlm-testbed.git@deploy/helm-charts/opa?ref=c4e6ca37584bd470608978f2315e5bcdc72a1be6"
+    repository: "oci://ghcr.io/ri-scale/charts/dep-dlm"
     condition: opa.enabled
   - name: observability
     version: "0.1.0"
-    repository: "git+https://github.com/RI-SCALE/dep-dlm-testbed.git@deploy/helm-charts/observability?ref=c4e6ca37584bd470608978f2315e5bcdc72a1be6"
+    repository: "oci://ghcr.io/ri-scale/charts/dep-dlm"
     condition: observability.enabled

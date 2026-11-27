@@ -6,13 +6,13 @@ dependencies:
   repository: git+https://github.com/mgajek-cern/helm-charts.git@charts/rucio-daemons?ref=e69bb891a7045d64ec0fb72198ce7e502fed83a3
   version: 41.2.1
 - name: fts
-  repository: git+https://github.com/RI-SCALE/dep-dlm-testbed.git@deploy/helm-charts/fts?ref=e69dc2223229b45658f3456229c2f6587d5550a3
+  repository: oci://ghcr.io/ri-scale/charts/dep-dlm
   version: 0.1.0
 - name: opa
-  repository: git+https://github.com/RI-SCALE/dep-dlm-testbed.git@deploy/helm-charts/opa?ref=e69dc2223229b45658f3456229c2f6587d5550a3
+  repository: oci://ghcr.io/ri-scale/charts/dep-dlm
   version: 0.1.0
 - name: observability
-  repository: git+https://github.com/RI-SCALE/dep-dlm-testbed.git@deploy/helm-charts/observability?ref=e69dc2223229b45658f3456229c2f6587d5550a3
+  repository: oci://ghcr.io/ri-scale/charts/dep-dlm
   version: 0.1.0
-digest: sha256:4c974922b75e5031b6510f1954812665c753c455b3c89579c87948909abfa96c
-generated: "2026-11-26T20:07:56.653223+01:00"
+digest: sha256:963e985574eca1b496d198c95936a80f0b6ff0e417d4cf21f64f0b2d58fee96a
+generated: "2026-11-27T16:59:42.819141+01:00"
