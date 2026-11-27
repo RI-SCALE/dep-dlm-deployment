@@ -17,8 +17,10 @@ flowchart LR
     chart["charts/dep-dlm<br/>umbrella chart<br/>files/ + vendored subcharts"]
     envs["environments/&lt;ri&gt;/&lt;stage&gt;/<br/>env.yaml + values.yaml"]
   end
-  testbed["dep-dlm-testbed<br/>(validated commit)"] -- "make sync: files/<br/>make deps: fts, opa,<br/>observability @ sha" --> chart
+  testbed["dep-dlm-testbed<br/>(validated commit)"] -- "make sync: files/" --> chart
+  charts["dep-dlm-helm-charts<br/>(OCI release)"] -- "make deps: fts, opa,<br/>observability @ version" --> chart
   fork["rucio helm-charts fork"] -- "make deps:<br/>rucio-server/-daemons @ sha" --> chart
+  images["dep-dlm-containers<br/>(image release)"] -- "image tags<br/>in values.yaml" --> chart
 
   subgraph cluster["one cluster per RI"]
     direction TB
@@ -40,7 +42,7 @@ flowchart LR
 
 | Path | What |
 |---|---|
-| `charts/dep-dlm/` | Thin umbrella over the testbed's charts (`git+https`, pinned to commits, vendored as `.tgz` in `charts/`) plus secrets, ConfigMaps, DB bootstrap, optional Gateway |
+| `charts/dep-dlm/` | Thin umbrella over the dep-dlm-helm-charts (OCI, released versions) and the Rucio fork charts (`git+https`, pinned to commits), all vendored as `.tgz` in `charts/`, plus secrets, ConfigMaps, DB bootstrap, optional Gateway; images from dep-dlm-containers releases |
 | `charts/dep-dlm/files/` | Patches, scripts and OPA policies copied from the testbed by `make sync`, in the testbed's layout |
 | `environments/<ri>/<stage>/` | `env.yaml` (namespace, pinned `baseRevision`, ESO) and `values.yaml` (overrides only) |
 | `argocd/` | `root.yaml.tmpl` (External Secrets + ApplicationSet per environment), `traefik.yaml.tmpl` (on premise) |
@@ -173,23 +175,25 @@ devcontainer, VS Code forwards port 8080 to the host.
 
 ## Promoting a testbed commit
 
-A promotion copies the deployed files from a validated testbed commit and
-pins the testbed subcharts to the same commit, so they cannot drift apart.
+A promotion copies the deployed files from a validated testbed commit. The
+chart versions in `Chart.yaml` and the image tags in `values.yaml` are set to
+the releases that commit was tested with (the testbed pins the same ones).
 
 ```mermaid
 flowchart LR
   a["Testbed commit<br/>passes CI + staging"] --> b["make sync TESTBED=&lt;sha&gt;<br/>make deps"]
   b --> c["Review git diff;<br/>on-premise E2E run"]
-  c --> d["Commit files/, charts/, Chart.lock,<br/>PROMOTION.md (commit + run link);<br/>tag vX.Y.Z"]
+  c --> d["Commit files/, charts/, Chart.lock,<br/>PROMOTION.md (commit, components, run link);<br/>tag vX.Y.Z"]
   d --> r["Release workflow:<br/>checks PROMOTION.md,<br/>publishes GitHub Release"]
   r --> e["Environments bump<br/>baseRevision to the tag"]
 ```
 
 ```bash
-make sync TESTBED=<validated sha> [RUCIO_REF=<ref>]   # files/ + chart refs in Chart.yaml
-make deps && make lint                                 # re-vendor the subcharts (needs helm-git)
+make sync TESTBED=<validated sha> [RUCIO_REF=<ref>]   # files/ + Rucio fork refs in Chart.yaml
+# set the fts/opa/observability versions in Chart.yaml and the image tags to the testbed's
+make deps && make lint                                 # re-vendor the subcharts (needs helm-git for Rucio)
 git diff                                               # what is being promoted
-# run the on-premise E2E workflow on the branch; in PROMOTION.md add the run links,
+# run the on-premise E2E workflow on the branch; in PROMOTION.md add the components and run links,
 # rename "## Unreleased" to "## vX.Y.Z" and add a new empty "## Unreleased" above it
 git add charts/dep-dlm PROMOTION.md && git commit && git push
 git tag -a vX.Y.Z -m "dep-dlm vX.Y.Z" && git push origin vX.Y.Z   # Release workflow checks and publishes
@@ -198,11 +202,12 @@ git tag -a vX.Y.Z -m "dep-dlm vX.Y.Z" && git push origin vX.Y.Z   # Release work
 Rolling back is the reverse: set `baseRevision` back to the previous tag and restore the databases if the release migrated a schema
 ([docs/single-node.md](docs/single-node.md#3-upgrades-patching-and-rollback)).
 
-`TESTBED` also takes a tag, a branch or a path to a local checkout; refs are
-always pinned as full commit SHAs. Only `make deps` needs helm-git: Argo CD
-renders the committed `.tgz` subcharts, so it needs neither the plugin nor
-access to the source repos. Run `make deps` only when the refs change, since
-Helm rewrites the archives with new timestamps.
+`TESTBED` also takes a tag, a branch or a path to a local checkout; Rucio fork
+refs are always pinned as full commit SHAs, dep-dlm-helm-charts by release
+version. Only `make deps` needs network access (and helm-git for the Rucio
+fork): Argo CD renders the committed `.tgz` subcharts, so it needs neither the
+plugin nor access to the sources. Run `make deps` only when a version or ref
+changes, since Helm rewrites the archives with new timestamps.
 
 ## Adding an environment
 

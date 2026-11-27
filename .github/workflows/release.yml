@@ -21,11 +21,13 @@ jobs:
           # Expected right after the tag's heading:
           #   ## vX.Y.Z
           #   - Testbed: dep-dlm-testbed `<sha>` (`make sync`)
+          #   - Components: dep-dlm-containers vX.Y.Z, dep-dlm-helm-charts vX.Y.Z, ...
           #   - Evidence: [...](https://github.com/.../actions/runs/<id>) ...
-          grep -A2 -x "## ${TAG}" PROMOTION.md | tail -n +2 > notes.md || true
+          grep -A3 -x "## ${TAG}" PROMOTION.md | tail -n +2 > notes.md || true
           if ! sed -n 1p notes.md | grep -q '^- Testbed: ' ||
-             ! sed -n 2p notes.md | grep -q '^- Evidence: .*actions/runs/'; then
-            echo "::error::PROMOTION.md needs '## ${TAG}' followed by '- Testbed:' and '- Evidence:' (with E2E run links): rename 'Unreleased' to ${TAG} before tagging"
+             ! sed -n 2p notes.md | grep -q '^- Components: ' ||
+             ! sed -n 3p notes.md | grep -q '^- Evidence: .*actions/runs/'; then
+            echo "::error::PROMOTION.md needs '## ${TAG}' followed by '- Testbed:', '- Components:' and '- Evidence:' (with E2E run links): rename 'Unreleased' to ${TAG} before tagging"
             exit 1
           fi
           cat notes.md

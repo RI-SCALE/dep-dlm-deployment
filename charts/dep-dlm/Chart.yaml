@@ -7,7 +7,7 @@ description: |
   bootstrap and an optional Gateway.
 type: application
 version: 0.1.0
-appVersion: "41.2.1"
+appVersion: "0.1.0"
 
 # fts, opa and observability come from dep-dlm-helm-charts (OCI, released
 # versions); the Rucio charts from the fork via the helm-git plugin, pinned

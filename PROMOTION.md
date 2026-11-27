@@ -1,11 +1,12 @@
 # Promotion record
 
 Each release (`vX.Y.Z`, pinned as `baseRevision`) records what it was promoted from:
-a `- Testbed:` and an `- Evidence:` line (E2E run links) under its heading. The
-Release workflow checks both lines and publishes them as the release notes.
+a `- Testbed:`, a `- Components:` and an `- Evidence:` line (E2E run links) under its heading. The
+Release workflow checks all three lines and publishes them as the release notes.
 
 ## Unreleased
 - Testbed: dep-dlm-testbed `c4e6ca37584bd470608978f2315e5bcdc72a1be6` (`make sync`)
+- Components: dep-dlm-containers v0.1.0, dep-dlm-helm-charts v0.1.0, dep-dlm-usage-reporter v0.4.1
 - Evidence: <!-- on-premise E2E run links, added after the manual runs -->
 
 ## v0.1.0
