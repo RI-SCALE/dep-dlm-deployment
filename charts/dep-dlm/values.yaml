@@ -37,7 +37,7 @@ secrets:
 bootstrapDb:
   enabled: true
   dbHost: ""                       # Rucio PostgreSQL, reachable from the cluster
-  image: { repository: ghcr.io/ri-scale/dep-dlm-containers/rucio-server, tag: 67c1b54e76b116288c93a0079c2c1c11cde0c6da }
+  image: { repository: ghcr.io/ri-scale/dep-dlm-containers/rucio-server, tag: "41.2.1-dep.0.1.0" }
 
 opaInit:
   enabled: true
@@ -60,7 +60,7 @@ rucio-server:
   enabled: true
   fullnameOverride: rucio-server
   replicaCount: 1
-  image: { repository: ghcr.io/ri-scale/dep-dlm-containers/rucio-server, tag: 67c1b54e76b116288c93a0079c2c1c11cde0c6da, pullPolicy: IfNotPresent }
+  image: { repository: ghcr.io/ri-scale/dep-dlm-containers/rucio-server, tag: 41.2.1-dep.0.1.0, pullPolicy: IfNotPresent }
   useSSL: false
   service: { type: ClusterIP, port: 80, targetPort: 80 }
   useDeprecatedImplicitSecrets: false
@@ -103,7 +103,7 @@ rucio-server:
 rucio-daemons:
   enabled: true
   fullnameOverride: rucio-daemons
-  image: { repository: ghcr.io/ri-scale/dep-dlm-containers/rucio-daemons, tag: 67c1b54e76b116288c93a0079c2c1c11cde0c6da, pullPolicy: IfNotPresent }
+  image: { repository: ghcr.io/ri-scale/dep-dlm-containers/rucio-daemons, tag: 41.2.1-dep.0.1.0, pullPolicy: IfNotPresent }
   useDeprecatedImplicitSecrets: false
   config:
     conveyor:
@@ -142,7 +142,7 @@ rucio-daemons:
 fts:
   enabled: true
   fullnameOverride: fts
-  image: { repository: ghcr.io/ri-scale/dep-dlm-containers/fts, tag: 67c1b54e76b116288c93a0079c2c1c11cde0c6da }
+  image: { repository: ghcr.io/ri-scale/dep-dlm-containers/fts, tag: 3.14.4-dep.0.1.0 }
   ftsdb: { enabled: false }        # external MySQL, configured in fts3config
   env:
     - { name: REQUESTS_CA_BUNDLE, value: /etc/pki/tls/certs/ca-bundle.crt }
