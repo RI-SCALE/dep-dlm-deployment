@@ -24,13 +24,13 @@ dependencies:
     condition: rucio-daemons.enabled
   - name: fts
     version: "0.1.0"
-    repository: "git+https://github.com/RI-SCALE/dep-dlm-testbed.git@deploy/helm-charts/fts?ref=e69dc2223229b45658f3456229c2f6587d5550a3"
+    repository: "git+https://github.com/RI-SCALE/dep-dlm-testbed.git@deploy/helm-charts/fts?ref=c4e6ca37584bd470608978f2315e5bcdc72a1be6"
     condition: fts.enabled
   - name: opa
     version: "0.1.0"
-    repository: "git+https://github.com/RI-SCALE/dep-dlm-testbed.git@deploy/helm-charts/opa?ref=e69dc2223229b45658f3456229c2f6587d5550a3"
+    repository: "git+https://github.com/RI-SCALE/dep-dlm-testbed.git@deploy/helm-charts/opa?ref=c4e6ca37584bd470608978f2315e5bcdc72a1be6"
     condition: opa.enabled
   - name: observability
     version: "0.1.0"
-    repository: "git+https://github.com/RI-SCALE/dep-dlm-testbed.git@deploy/helm-charts/observability?ref=e69dc2223229b45658f3456229c2f6587d5550a3"
+    repository: "git+https://github.com/RI-SCALE/dep-dlm-testbed.git@deploy/helm-charts/observability?ref=c4e6ca37584bd470608978f2315e5bcdc72a1be6"
     condition: observability.enabled

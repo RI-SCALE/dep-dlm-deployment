@@ -5,7 +5,7 @@ a `- Testbed:` and an `- Evidence:` line (E2E run links) under its heading. The
 Release workflow checks both lines and publishes them as the release notes.
 
 ## Unreleased
-- Testbed: dep-dlm-testbed `e69dc2223229b45658f3456229c2f6587d5550a3` (`make sync`)
+- Testbed: dep-dlm-testbed `c4e6ca37584bd470608978f2315e5bcdc72a1be6` (`make sync`)
 - Evidence: <!-- on-premise E2E run links, added after the manual runs -->
 
 ## v0.1.0
